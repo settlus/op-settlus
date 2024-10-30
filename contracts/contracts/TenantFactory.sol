@@ -7,9 +7,16 @@ import "./Tenant.sol";
 
 contract TenantFactory is Ownable {
     mapping(string => address) public tenants;
-    address[] public tenantAddresses; 
+    address[] public tenantAddresses;
 
-    event TenantCreated(address tenantAddress, string tenantName, Tenant.CurrencyType ccy_type, address ccy_addr, uint256 payoutPeriod);
+    event TenantCreated(
+        address tenantAddress,
+        string tenantName,
+        Tenant.CurrencyType ccy_type,
+        address ccy_addr,
+        uint256 payoutPeriod
+    );
+    event SettleFailed(address tenantAddress);
 
     constructor() Ownable(msg.sender) {}
 
@@ -21,16 +28,34 @@ contract TenantFactory is Ownable {
     ) public returns (address) {
         require(tenants[name] == address(0), "Tenant name already exists");
 
-        Tenant newTenant = new Tenant(address(this), msg.sender, name, ccy_type, ccy_addr, payoutPeriod);
-        
+        Tenant newTenant = new Tenant(
+            address(this),
+            msg.sender,
+            name,
+            ccy_type,
+            ccy_addr,
+            payoutPeriod
+        );
+
         if (ccy_type == Tenant.CurrencyType.ETH && ccy_addr == address(0)) {
             ccy_addr = address(0);
-        } else if (ccy_type == Tenant.CurrencyType.ERC20 && ccy_addr == address(0)) {
-            BasicERC20 newERC20 = new BasicERC20(address(newTenant), "ERC20", "Token");
+        } else if (
+            ccy_type == Tenant.CurrencyType.ERC20 && ccy_addr == address(0)
+        ) {
+            BasicERC20 newERC20 = new BasicERC20(
+                address(newTenant),
+                "ERC20",
+                "Token"
+            );
             ccy_addr = address(newERC20);
-
-        } else if (ccy_type == Tenant.CurrencyType.SBT && ccy_addr == address(0)) {
-            ERC20NonTransferable newSBT = new ERC20NonTransferable(address(newTenant), "Soul Bound Token", "SBT");
+        } else if (
+            ccy_type == Tenant.CurrencyType.SBT && ccy_addr == address(0)
+        ) {
+            ERC20NonTransferable newSBT = new ERC20NonTransferable(
+                address(newTenant),
+                "Soul Bound Token",
+                "SBT"
+            );
             ccy_addr = address(newSBT);
         }
 
@@ -39,17 +64,29 @@ contract TenantFactory is Ownable {
         tenants[name] = address(newTenant);
         tenantAddresses.push(address(newTenant));
 
-        emit TenantCreated(address(newTenant), name, ccy_type, ccy_addr, payoutPeriod);
+        emit TenantCreated(
+            address(newTenant),
+            name,
+            ccy_type,
+            ccy_addr,
+            payoutPeriod
+        );
         return address(newTenant);
     }
 
     function settleAll() public {
         for (uint256 i = 0; i < tenantAddresses.length; i++) {
-            Tenant(payable(tenantAddresses[i])).settle();
+            try Tenant(payable(tenantAddresses[i])).settle() {
+            } catch {
+                // Settle failed for tenant[i], emit event
+                emit SettleFailed(tenantAddresses[i]);
+            }
         }
     }
 
-    function getTenantAddress(string memory name) public view returns (address) {
+    function getTenantAddress(
+        string memory name
+    ) public view returns (address) {
         return tenants[name];
     }
 

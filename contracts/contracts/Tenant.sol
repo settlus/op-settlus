@@ -16,6 +16,8 @@ contract Tenant is Ownable {
         SBT
     }
 
+    event Settled(uint256 indexed reqID, uint256 amount, address recipient);
+
     struct UTXR {
         uint256 reqID;
         uint256 amount;
@@ -88,6 +90,7 @@ contract Tenant is Ownable {
             contractAddr: contractAddr,
             tokenID: tokenID
         });
+        
         utxrs.push(newUTXR);
     }
 
@@ -134,6 +137,7 @@ contract Tenant is Ownable {
         payoutPeriod = _payoutPeriod;
     }
 
+
     function settle() public onlyFactoryOrOwner {
         for (uint256 i = 0; i < utxrs.length; ) {
             UTXR memory utxr = utxrs[i];
@@ -141,11 +145,13 @@ contract Tenant is Ownable {
                 if (currencyType == CurrencyType.ETH) {
                     payable(utxr.recipient).transfer(utxr.amount);
                 } else if (currencyType == CurrencyType.ERC20) {
+                    // Tenant's ERC20 is sent to recipient
                     BasicERC20(currencyAddress).transfer(
                         utxr.recipient,
                         utxr.amount
                     );
                 } else if (currencyType == CurrencyType.SBT) {
+                    // Tenant's SBT is minted to recipient
                     ERC20NonTransferable(currencyAddress).mint(
                         utxr.recipient,
                         utxr.amount
@@ -159,6 +165,12 @@ contract Tenant is Ownable {
                 i++;
             }
         }
+    }
+
+    // TODO: need this?
+    function mint(uint256 amount) public onlyOwner {
+        require(currencyType == CurrencyType.ERC20, "Not ERC20");
+        BasicERC20(currencyAddress).mint(address(this), amount);
     }
 
     receive() external payable {}
