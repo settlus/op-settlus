@@ -1,7 +1,7 @@
 {
-  "name": "hardhat-project",
+  "name": "settlus-contracts",
   "scripts": {
-    "compile": "hardhat compile",
+    "compile": "hardhat compile --force",
     "build": "hardhat compile --force && tsc",
     "test": "hardhat test",
     "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts'"

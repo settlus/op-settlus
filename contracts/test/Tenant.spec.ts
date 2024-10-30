@@ -196,6 +196,87 @@ describe('Tenant', function () {
     expect(await tenant.read.payoutPeriod()).to.equal(BigInt(86400))
   })
 
+  it('should revert cancel if UTXR is past payout period', async function () {
+    const { tenantFactory, tenantOwner, publicClient, nft } = await loadFixture(deployTenantWithFactory)
+
+    const tx = await tenantFactory.write.createTenant(['Test Tenant', 1, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+    })
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const tenantAddress = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantFactory').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
+
+    const reqID = BigInt(1)
+    const amount = BigInt(100)
+    const chainID = BigInt(1)
+
+    await tenant.write.record([reqID, amount, chainID, nft.address, BigInt(0)], { account: tenantOwner.account })
+
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
+
+    // TODO: related issue? https://github.com/NomicFoundation/hardhat/issues/4235
+    // await expect(tenant.write.cancel([reqID], { account: tenantOwner.account })).to.be.revertedWith(
+    //   'Cannot cancel, UTXR past payout period'
+    // )
+
+    const utxr = await tenant.read.utxrs([BigInt(0)])
+    expect(utxr[7]).to.equal(0) // 7th index is RecordStatus
+  })
+
+  it('should correctly settle multiple UTXRs and skip canceled ones', async function () {
+    const { tenantFactory, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(deployTenantWithFactory)
+
+    const tx = await tenantFactory.write.createTenant(['Test Tenant', 1, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+    })
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const tenantAddress = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantFactory').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
+    const tenantErc20Address = await tenant.read.currencyAddress()
+    const tenantErc20 = await hre.viem.getContractAt('BasicERC20', tenantErc20Address)
+
+    const initialBalance = BigInt(1000)
+    await tenant.write.mint([initialBalance], { account: tenantOwner.account })
+
+    const reqID1 = BigInt(1)
+    const reqID2 = BigInt(2)
+    const reqID3 = BigInt(3)
+    const amount1 = BigInt(100)
+    const amount2 = BigInt(150)
+    const amount3 = BigInt(200)
+    const chainID = BigInt(1)
+
+    await tenant.write.record([reqID1, amount1, chainID, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenant.write.record([reqID2, amount2, chainID, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenant.write.record([reqID3, amount3, chainID, nft.address, BigInt(0)], { account: tenantOwner.account })
+
+    await tenant.write.cancel([reqID2], { account: tenantOwner.account })
+
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
+
+    await tenant.write.settle({ account: tenantOwner.account })
+
+    const utxr1 = await tenant.read.utxrs([BigInt(0)])
+    const utxr2 = await tenant.read.utxrs([BigInt(1)])
+    const utxr3 = await tenant.read.utxrs([BigInt(2)])
+    expect(utxr1[7]).to.equal(1)
+    expect(utxr2[7]).to.equal(2)
+    expect(utxr3[7]).to.equal(1)
+
+    expect(await tenantErc20.read.balanceOf([nftOwner.account.address])).to.equal(amount1 + amount3)
+    expect(await tenant.read.lastSettledIndex()).to.equal(BigInt(3))
+  })
+
   it('should settle UTXRs (Tenant with ETH currency)', async function () {
     const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(deployTenantWithFactory)
 
@@ -400,7 +481,6 @@ describe('Tenant', function () {
     const reqID3 = BigInt(3)
     const amount3 = BigInt(150)
 
-    var remainingUtxrs
     // Record three UTXRs with different timestamps
     await tenant.write.record([reqID1, amount1, chainID, nft.address, BigInt(0)], { account: tenantOwner.account })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))]) // Half of payoutPeriod
@@ -421,8 +501,7 @@ describe('Tenant', function () {
     expect(await tenantErc20.read.balanceOf([tenantAddress!])).to.equal(expectedRemainingBalance)
     expect(await tenantErc20.read.balanceOf([nftOwner.account.address])).to.equal(expectedNftOwnerBalance)
 
-    // Verify UTXRs: Only reqID3 should remain unsettled
-    remainingUtxrs = await tenant.read.utxrs([BigInt(0)])
+    const remainingUtxrs = await tenant.read.utxrs([await tenant.read.lastSettledIndex()])
     expect(remainingUtxrs[0]).to.equal(reqID3)
     expect(remainingUtxrs[1]).to.equal(amount3)
   })

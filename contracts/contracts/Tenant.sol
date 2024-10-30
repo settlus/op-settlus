@@ -16,6 +16,12 @@ contract Tenant is Ownable {
     SBT
   }
 
+  enum RecordStatus {
+    Pending,
+    Settled,
+    Cancelled
+  }
+
   event Settled(uint256 indexed reqID, uint256 amount, address recipient);
 
   struct UTXR {
@@ -26,7 +32,10 @@ contract Tenant is Ownable {
     uint256 chainID;
     address contractAddr;
     uint256 tokenID;
+    RecordStatus status;
   }
+
+  // need reqId map for record to cancel
 
   address public factory;
   address public creator;
@@ -36,6 +45,8 @@ contract Tenant is Ownable {
   uint256 public payoutPeriod;
 
   UTXR[] public utxrs;
+  uint256 public lastSettledIndex;
+  mapping(uint256 => uint256) public reqIdToIndex;
 
   constructor(
     address _factory,
@@ -50,6 +61,8 @@ contract Tenant is Ownable {
     name = _name;
     currencyType = _currencyType;
     payoutPeriod = _payoutPeriod;
+    lastSettledIndex = 0;
+
     if (currencyType == CurrencyType.ETH) {
       currencyAddress = address(0);
     } else {
@@ -83,22 +96,22 @@ contract Tenant is Ownable {
       recipient: nftOwner,
       chainID: chainID,
       contractAddr: contractAddr,
-      tokenID: tokenID
+      tokenID: tokenID,
+      status: RecordStatus.Pending
     });
 
     utxrs.push(newUTXR);
+    reqIdToIndex[reqID] = utxrs.length - 1;
   }
 
-  function cancel(uint256 reqID) public onlyOwner {
-    for (uint256 i = 0; i < utxrs.length; i++) {
-      //TODO: we are going to settle and pops the utxrs, need to check here again?
-      if (utxrs[i].reqID == reqID) {
-        require(block.timestamp < utxrs[i].timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
-        utxrs[i] = utxrs[utxrs.length - 1];
-        utxrs.pop();
-        break;
-      }
-    }
+  function cancel(uint256 reqID) external onlyOwner {
+    uint256 index = reqIdToIndex[reqID];
+    UTXR storage utxr = utxrs[index];
+
+    require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
+
+    utxr.status = RecordStatus.Cancelled; // Mark as canceled
+    delete reqIdToIndex[reqID]; // Remove the mapping for the canceled UTXR if no longer needed
   }
 
   function getUTXR(
@@ -126,24 +139,30 @@ contract Tenant is Ownable {
   }
 
   function settle() public onlyFactoryOrOwner {
-    for (uint256 i = 0; i < utxrs.length; ) {
-      UTXR memory utxr = utxrs[i];
+    uint256 currentLength = utxrs.length;
+
+    for (uint256 i = lastSettledIndex; i < currentLength; i++) {
+      UTXR storage utxr = utxrs[i];
+
+      if (utxr.status == RecordStatus.Cancelled) {
+        lastSettledIndex = i + 1;
+        continue;
+      }
+
       if (block.timestamp >= utxr.timestamp + payoutPeriod) {
         if (currencyType == CurrencyType.ETH) {
           payable(utxr.recipient).transfer(utxr.amount);
         } else if (currencyType == CurrencyType.ERC20) {
-          // Tenant's ERC20 is sent to recipient
           BasicERC20(currencyAddress).transfer(utxr.recipient, utxr.amount);
         } else if (currencyType == CurrencyType.SBT) {
-          // Tenant's SBT is minted to recipient
+          // Assuming the SBT contract has a mint function
           ERC20NonTransferable(currencyAddress).mint(utxr.recipient, utxr.amount);
         }
 
-        // gas efficient way to remove element from array
-        utxrs[i] = utxrs[utxrs.length - 1];
-        utxrs.pop();
+        utxr.status = RecordStatus.Settled;
+        lastSettledIndex = i + 1;
       } else {
-        i++;
+        break;
       }
     }
   }
