@@ -3,7 +3,8 @@
   "scripts": {
     "compile": "hardhat compile",
     "build": "hardhat compile --force && tsc",
-    "test": "hardhat test"
+    "test": "hardhat test",
+    "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts'"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
