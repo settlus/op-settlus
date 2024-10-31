@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "build", "scripts", "**/*.spec.ts", "hardhat.config.ts"]
+  "exclude": ["node_modules", "build", "scripts", "**/*.spec.ts", "hardhat.config.ts", "env.ts"]
 }

@@ -3,7 +3,7 @@
   "scripts": {
     "compile": "hardhat compile --force",
     "build": "hardhat compile --force && tsc",
-    "test": "hardhat test",
+    "test": "hardhat test --network hardhat",
     "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts'"
   },
   "devDependencies": {
@@ -12,12 +12,15 @@
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem": "^2.0.5",
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "ethers": "^6.13.4",
     "hardhat": "^2.22.15",
     "prettier": "^3.3.3",
     "prettier-plugin-solidity": "^1.4.1",
+    "typescript": "^5.6.3",
     "viem": "^2.21.35"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.1.0"
+    "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^16.4.5"
   }
 }

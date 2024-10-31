@@ -11,7 +11,7 @@
           "files": "*.sol",
           "options": {
             "bracketSpacing": false,
-            "explicitTypes": "always",
+            "explicitTypes": "always"
           }
         }
       ]
