@@ -28,11 +28,11 @@ const getPrivateKey = () => {
 }
 
 const config: HardhatUserConfig = {
-  defaultNetwork: 'settlus',
   networks: {
-    settlus: {
+    local: {
       url: getEndpoint(),
       accounts: getPrivateKey(),
+      chainId: 900,
     },
   },
   solidity: {

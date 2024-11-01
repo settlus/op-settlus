@@ -4,7 +4,8 @@
     "compile": "hardhat compile --force",
     "build": "hardhat compile --force && tsc",
     "test": "hardhat test --network hardhat",
-    "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts'"
+    "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts'",
+    "local-deploy": "npx hardhat run scripts/TenantFactory.ts --network local"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
