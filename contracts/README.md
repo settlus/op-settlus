@@ -2,7 +2,7 @@
 
 ## Compile contract and test
 ```bash
-pnpm build
+pnpm compile
 pnpm test
 ```
 
