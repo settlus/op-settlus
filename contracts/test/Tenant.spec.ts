@@ -123,7 +123,7 @@ describe('Tenant', function () {
 
     const sbtTenant = await hre.viem.getContractAt('Tenant', sbtTenantAddress!)
 
-    const reqID1 = BigInt(1)
+    const reqID1 = 'reqId1'
     const amount1 = BigInt(100)
     const chainID = BigInt(1)
     const tokenID = BigInt(0)
@@ -132,7 +132,7 @@ describe('Tenant', function () {
 
     const initialUtxr = await sbtTenant.read.utxrs([BigInt(0)])
     expect(initialUtxr[3]).to.equal(getAddress(nftOwner.account.address))
-    expect(initialUtxr[0]).to.equal(BigInt(reqID1))
+    expect(initialUtxr[0]).to.equal(reqID1)
     expect(initialUtxr[1]).to.equal(amount1)
 
     await nft.write.transferFrom([nftOwner.account.address, newNftOwner.account.address, tokenID], {
@@ -143,14 +143,14 @@ describe('Tenant', function () {
     await hre.network.provider.send('evm_mine', [])
     await hre.network.provider.send('evm_mine', [])
 
-    const reqID2 = BigInt(2)
+    const reqID2 = 'reqId2'
     const amount2 = BigInt(200)
 
     await sbtTenant.write.record([reqID2, amount2, chainID, nft.address, tokenID], { account: tenantOwner.account })
 
     const updatedUtxr = await sbtTenant.read.utxrs([BigInt(1)])
     expect(updatedUtxr[3]).to.equal(getAddress(newNftOwner.account.address))
-    expect(updatedUtxr[0]).to.equal(BigInt(reqID2))
+    expect(updatedUtxr[0]).to.equal(reqID2)
     expect(updatedUtxr[1]).to.equal(amount2)
   })
 
@@ -210,7 +210,7 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    const reqID = BigInt(1)
+    const reqID = 'reqId1'
     const amount = BigInt(100)
     const chainID = BigInt(1)
 
@@ -247,9 +247,9 @@ describe('Tenant', function () {
     const initialBalance = BigInt(1000)
     await tenant.write.mint([initialBalance], { account: tenantOwner.account })
 
-    const reqID1 = BigInt(1)
-    const reqID2 = BigInt(2)
-    const reqID3 = BigInt(3)
+    const reqID1 = 'reqId1'
+    const reqID2 = 'reqId2'
+    const reqID3 = 'reqId3'
     const amount1 = BigInt(100)
     const amount2 = BigInt(150)
     const amount3 = BigInt(200)
@@ -304,7 +304,7 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    const reqID = BigInt(1)
+    const reqID = 'reqId1'
     const amount = BigInt(100)
     const chainID = BigInt(1)
 
@@ -353,7 +353,7 @@ describe('Tenant', function () {
       account: tenantOwner.account,
     })
 
-    const reqID = BigInt(1)
+    const reqID = 'reqId1'
     const amount = BigInt(100)
     const chainID = BigInt(1)
 
@@ -394,7 +394,7 @@ describe('Tenant', function () {
       account: tenantOwner.account,
     })
 
-    const reqID = BigInt(1)
+    const reqID = 'reqId1'
     const amount = BigInt(100)
     const chainID = BigInt(1)
 
@@ -428,7 +428,7 @@ describe('Tenant', function () {
     const tenantSBTAddress = await tenant.read.currencyAddress()
     const tenantSBT = await hre.viem.getContractAt('ERC20NonTransferable', tenantSBTAddress)
 
-    const reqID = BigInt(1)
+    const reqID = 'reqId1'
     const amount = BigInt(100)
     const chainID = BigInt(1)
 
@@ -471,14 +471,14 @@ describe('Tenant', function () {
       account: tenantOwner.account,
     })
 
-    const reqID1 = BigInt(1)
+    const reqID1 = 'reqId1'
     const amount1 = BigInt(100)
     const chainID = BigInt(1)
 
-    const reqID2 = BigInt(2)
+    const reqID2 = 'reqId2'
     const amount2 = BigInt(200)
 
-    const reqID3 = BigInt(3)
+    const reqID3 = 'reqId3'
     const amount3 = BigInt(150)
 
     // Record three UTXRs with different timestamps
