@@ -10,5 +10,5 @@ pnpm test
  
 ```bash
 # configure network in hardhat.config.ts
-npx hardhat run scripts/TenantFactory.ts --network local
+npx hardhat run scripts/deploy.ts --network local
 ```

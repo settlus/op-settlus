@@ -215,8 +215,8 @@ describe('TenantFactory', function () {
     })
 
     // Record UTXRs in each tenant
-    const reqID1 = BigInt(1)
-    const reqID2 = BigInt(2)
+    const reqID1 = 'reqId1'
+    const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500) // Higher than tenant2's balance
 
     await tenant1.write.record([reqID1, amountToSettle, BigInt(1), nft.address, BigInt(0)], {

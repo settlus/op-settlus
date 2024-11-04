@@ -1,8 +1,9 @@
 import './env'
 import type { HardhatUserConfig } from "hardhat/config";
 
-import "@nomicfoundation/hardhat-chai-matchers";
+import "@nomicfoundation/hardhat-toolbox-viem";
 import "@nomicfoundation/hardhat-viem";
+import "@nomicfoundation/hardhat-chai-matchers";
 
 const getEndpoint = () => {
   const { ENDPOINT_URL } = process.env

@@ -51,9 +51,12 @@ contract TenantFactory is Ownable {
 
   function settleAll() public {
     for (uint256 i = 0; i < tenantAddresses.length; i++) {
-      try Tenant(payable(tenantAddresses[i])).settle() {} catch {
-        // Settle failed for tenant[i], emit event
-        emit SettleFailed(tenantAddresses[i]);
+      Tenant tenant = Tenant(payable(tenantAddresses[i]));
+      if (tenant.hasPendingSettlements()) {
+        try tenant.settle() {} catch {
+          // Settle failed for tenant[i], emit event
+          emit SettleFailed(tenantAddresses[i]);
+        }
       }
     }
   }

@@ -22,10 +22,10 @@ contract Tenant is Ownable {
     Cancelled
   }
 
-  event Settled(uint256 indexed reqID, uint256 amount, address recipient);
+  event Settled(string indexed reqID, uint256 amount, address recipient);
 
   struct UTXR {
-    uint256 reqID;
+    string reqID;
     uint256 amount;
     uint256 timestamp;
     address recipient;
@@ -34,8 +34,6 @@ contract Tenant is Ownable {
     uint256 tokenID;
     RecordStatus status;
   }
-
-  // need reqId map for record to cancel
 
   address public factory;
   address public creator;
@@ -46,7 +44,8 @@ contract Tenant is Ownable {
 
   UTXR[] public utxrs;
   uint256 public lastSettledIndex;
-  mapping(uint256 => uint256) public reqIdToIndex;
+
+  mapping(string => uint256) public reqIdToIndex;
 
   constructor(
     address _factory,
@@ -80,18 +79,21 @@ contract Tenant is Ownable {
   }
 
   function record(
-    uint256 reqID,
+    string memory reqID,
     uint256 amount,
     uint256 chainID,
     address contractAddr,
     uint256 tokenID
   ) public onlyOwner {
+    // Ensure reqID is unique
+    require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
+    require(reqIdToIndex[reqID] == 0, 'Record with the same reqID already exists');
+
     address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
 
     UTXR memory newUTXR = UTXR({
       reqID: reqID,
       amount: amount,
-      // TODO: receive timestamp from param?
       timestamp: block.timestamp,
       recipient: nftOwner,
       chainID: chainID,
@@ -104,33 +106,18 @@ contract Tenant is Ownable {
     reqIdToIndex[reqID] = utxrs.length - 1;
   }
 
-  function cancel(uint256 reqID) external onlyOwner {
+  function cancel(string memory reqID) external onlyOwner {
+    require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
+
     uint256 index = reqIdToIndex[reqID];
     UTXR storage utxr = utxrs[index];
 
     require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
 
-    utxr.status = RecordStatus.Cancelled; // Mark as canceled
-    delete reqIdToIndex[reqID]; // Remove the mapping for the canceled UTXR if no longer needed
-  }
+    utxr.status = RecordStatus.Cancelled;
 
-  function getUTXR(
-    uint256 index
-  )
-    public
-    view
-    returns (
-      uint256 reqID,
-      uint256 amount,
-      uint256 timestamp,
-      address recipient,
-      uint256 chainID,
-      address contractAddr,
-      uint256 tokenID
-    )
-  {
-    UTXR memory utxr = utxrs[index];
-    return (utxr.reqID, utxr.amount, utxr.timestamp, utxr.recipient, utxr.chainID, utxr.contractAddr, utxr.tokenID);
+    //TODO: delete mapping?
+    delete reqIdToIndex[reqID];
   }
 
   function setPayoutPeriod(uint256 _payoutPeriod) external onlyOwner {
@@ -139,6 +126,9 @@ contract Tenant is Ownable {
   }
 
   function settle() public onlyFactoryOrOwner {
+    if (lastSettledIndex >= utxrs.length) {
+      return;
+    }
     uint256 currentLength = utxrs.length;
 
     for (uint256 i = lastSettledIndex; i < currentLength; i++) {
@@ -165,6 +155,17 @@ contract Tenant is Ownable {
         break;
       }
     }
+  }
+
+  function hasPendingSettlements() public view returns (bool) {
+    if (lastSettledIndex < utxrs.length) {
+      for (uint256 i = lastSettledIndex; i < utxrs.length; i++) {
+        if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // TODO: need this?
