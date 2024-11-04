@@ -202,11 +202,9 @@ describe('TenantFactory', function () {
     const tenant2 = await hre.viem.getContractAt('Tenant', tenant2Address!)
     const tenant2Erc20Address = await tenant2.read.currencyAddress()
 
-    // Set up ERC20 contract instance for tenants
     const tenant1Erc20 = await hre.viem.getContractAt('BasicERC20', tenant1Erc20Address)
     const tenant2Erc20 = await hre.viem.getContractAt('BasicERC20', tenant2Erc20Address)
 
-    // Mint initial balances for tenants
     await tenant1.write.mint([initialTreasuryBalance], {
       account: tenantOwner1.account,
     })
@@ -226,20 +224,16 @@ describe('TenantFactory', function () {
       account: tenantOwner2.account,
     })
 
-    // Fast forward time to make UTXRs eligible for settlement
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine', [])
 
-    // Call settleAll using deployer (TenantFactory owner) account
     await tenantFactory.write.settleAll({ account: deployer.account })
 
-    // Check results
     const tenant1BalanceAfter = await tenant1Erc20.read.balanceOf([tenant1Address!])
     const tenant2BalanceAfter = await tenant2Erc20.read.balanceOf([tenant2Address!])
     const recipientBalanceAtTenant1 = await tenant1Erc20.read.balanceOf([nftOwner.account.address])
     const recipientBalanceAtTenant2 = await tenant2Erc20.read.balanceOf([nftOwner.account.address])
 
-    // Assertions:
     expect(tenant1BalanceAfter).to.equal(initialTreasuryBalance - amountToSettle) // tenant1 settles successfully
     expect(tenant2BalanceAfter).to.equal(insufficientBalance) // tenant2 fails to settle due to insufficient funds
     expect(recipientBalanceAtTenant1).to.equal(amountToSettle) // recipient balance reflects only tenant1's successful settlement

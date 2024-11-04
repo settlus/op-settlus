@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/settlus/op-settler/service"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 )
@@ -17,5 +18,11 @@ func init() {
 }
 
 func start(_ *cobra.Command, _ []string) error {
-	return service.StartSettler(rootCmd.Context())
+	err := service.Start(rootCmd.Context())
+	if err != nil {
+		log.Errorf("Settler service terminated with error: %v", err)
+	} else {
+		log.Infoln("Settler service terminated gracefully")
+	}
+	return err
 }

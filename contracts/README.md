@@ -12,3 +12,5 @@ pnpm test
 # configure network in hardhat.config.ts
 npx hardhat run scripts/deploy.ts --network local
 ```
+
+## Test

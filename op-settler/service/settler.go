@@ -2,13 +2,14 @@ package service
 
 import (
 	"context"
-	"log"
-	"math/big"
 	"encoding/json"
+	"math/big"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/settlus/op-settler/contract"
 
-    "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,52 +18,63 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func StartSettler(ctx context.Context) error {
+func Start(ctx context.Context) error {
 	client, err := ethclient.Dial(GetEthEndpoint())
 	if err != nil {
-		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
+		log.Errorf("Failed to connect to the Ethereum client: %v", err)
 		return err
 	}
 
 	headerChannel := make(chan *types.Header)
 	sub, err := client.SubscribeNewHead(ctx, headerChannel)
 	if err != nil {
-		log.Fatalf("Failed to subscribe to new block headers: %v", err)
+		log.Errorf("Failed to subscribe to new block headers: %v", err)
 		return err
 	}
 
 	for {
 		select {
+		case <-ctx.Done():
+			log.Infoln("Context cancelled, shutting down...")
+			return nil
 		case err := <-sub.Err():
-			log.Fatalf("Subscription error: %v", err)
+			log.Errorf("Subscription error: %v", err)
+			return err
 		case header := <-headerChannel:
 			log.Printf("New block: %v", header.Number.String())
-			callSettleAll(ctx, client)
+			err := callSettleAll(ctx, client)
+			if err != nil {
+				log.Errorf("Failed to call settleAll: %v", err)
+				return err
+			}
 		}
 	}
 }
 
-func callSettleAll(ctx context.Context, client *ethclient.Client) {
+func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	privateKey, err := crypto.HexToECDSA(GetPrivateKey())
 	if err != nil {
-		log.Fatalf("Failed to load private key: %v", err)
+		log.Errorf("Failed to load private key: %v", err)
+		return err
 	}
 
 	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
 	nonce, err := client.PendingNonceAt(ctx, fromAddress)
 	if err != nil {
-		log.Fatalf("Failed to get nonce: %v", err)
+		log.Errorf("Failed to get nonce: %v", err)
+		return err
 	}
 
 	gasPrice, err := client.SuggestGasPrice(ctx)
 	if err != nil {
-		log.Fatalf("Failed to get gas price: %v", err)
+		log.Errorf("Failed to get gas price: %v", err)
+		return err
 	}
 
-	//TODO: get chainid from config?
 	chainID, err := client.NetworkID(ctx)
 	if err != nil {
-		log.Fatalf("Failed to get chain ID: %v", err)
+		log.Errorf("Failed to get chain ID: %v", err)
+		return err
 	}
 
 	contractAddress := common.HexToAddress(GetContractAddress())
@@ -70,10 +82,10 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) {
 
 	inputData, err := contractABI.Pack("settleAll")
 	if err != nil {
-		log.Fatalf("Failed to pack input data: %v", err)
+		log.Errorf("Failed to pack input data: %v", err)
+		return err
 	}
 
-	// Estimate gas limit
 	msg := ethereum.CallMsg{
 		From: fromAddress,
 		To:   &contractAddress,
@@ -81,7 +93,8 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) {
 	}
 	gasLimit, err := client.EstimateGas(ctx, msg)
 	if err != nil {
-		log.Fatalf("Failed to estimate gas: %v", err)
+		log.Errorf("Failed to estimate gas: %v", err)
+		return err
 	}
 
 	tx := types.NewTx(&types.LegacyTx{
@@ -94,22 +107,24 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) {
 	})
 
 	signer := types.LatestSignerForChainID(chainID)
-
 	signedTx, err := types.SignTx(tx, signer, privateKey)
 	if err != nil {
-		log.Fatalf("Failed to sign transaction: %v", err)
+		log.Errorf("Failed to sign transaction: %v", err)
+		return err
 	}
 
 	err = client.SendTransaction(ctx, signedTx)
 	if err != nil {
-		log.Fatalf("Failed to send transaction: %v", err)
+		log.Errorf("Failed to send transaction: %v", err)
+		return err
 	}
 
-	log.Printf("Transaction sent: %s", signedTx.Hash().Hex())
+	log.Infof("Transaction sent: %s", signedTx.Hash().Hex())
 
 	txReceipt, err := bind.WaitMined(ctx, client, signedTx)
 	if err != nil {
-		log.Fatalf("Failed to wait for transaction mining: %v", err)
+		log.Errorf("Failed to wait for transaction mining: %v", err)
+		return err
 	}
 
 	gasUsed := txReceipt.GasUsed
@@ -117,37 +132,48 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) {
 	totalFeeEther := new(big.Float).Quo(new(big.Float).SetInt(totalFeeWei), big.NewFloat(1e18))
 
 	if txReceipt.Status == types.ReceiptStatusSuccessful {
-		log.Printf("Transaction successful: %s", signedTx.Hash().Hex())
-		log.Printf("Gas used: %d, Total fee (ether): %f", gasUsed, totalFeeEther)
+		log.Infof("Transaction successful: %s", signedTx.Hash().Hex())
+		log.Debugf("Gas used: %d, Total fee (ether): %f ETH", gasUsed, totalFeeEther)
 	} else {
-		// TODO: for debugging purposes, remove?
+		log.Warnf("Transaction failed: %s", signedTx.Hash().Hex())
 		tx, _, err := client.TransactionByHash(ctx, signedTx.Hash())
 		if err != nil {
-			log.Fatalf("Failed to get transaction by hash: %v", err)
+			log.Debugf("Failed to get transaction by hash: %v", err)
+			return err
 		}
 
 		msg := ethereum.CallMsg{
 			From: fromAddress,
 			To:   tx.To(),
 			Data: tx.Data(),
-			Gas:  0,
+			Gas:  gasLimit,
 		}
 
 		result, err := client.CallContract(ctx, msg, txReceipt.BlockNumber)
 		if err != nil {
-			log.Fatalf("Failed to call contract: %v", err)
-			return
+			log.Debugf("Failed to call contract: %v", err)
+			return err
 		}
 
+		if len(result) == 0 {
+			log.Debugf("No revert reason returned")
+			return nil
+		}
+
+		log.Debugf("Raw revert reason result: %s", result)
+
 		var decodedResult map[string]interface{}
-		if err := json.Unmarshal([]byte(result), &decodedResult); err != nil {
-			log.Fatalf("Failed to unmarshal revert reason: %v", err)
+		if err := json.Unmarshal(result, &decodedResult); err != nil {
+			log.Debugf("Failed to unmarshal revert reason: %v", err)
+			return err
 		}
 
 		if revertReason, ok := decodedResult["error"].(string); ok {
-			log.Fatalf("Revert reason: %s\n", revertReason)
+			log.Debugf("Revert reason: %s", revertReason)
 		} else {
-			log.Fatalf("Failed to parse revert reason\n")
+			log.Debugf("Failed to parse revert reason")
 		}
 	}
+
+	return nil
 }

@@ -158,8 +158,9 @@ contract Tenant is Ownable {
   }
 
   function hasPendingSettlements() public view returns (bool) {
-    if (lastSettledIndex < utxrs.length) {
-      for (uint256 i = lastSettledIndex; i < utxrs.length; i++) {
+    uint256 currentLength = utxrs.length;
+    if (lastSettledIndex < currentLength) {
+      for (uint256 i = lastSettledIndex; i < currentLength; i++) {
         if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
           return true;
         }
