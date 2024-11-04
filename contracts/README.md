@@ -9,8 +9,9 @@ pnpm test
 ## Deploy Tenant Factory
  
 ```bash
-# configure network in hardhat.config.ts
-npx hardhat run scripts/deploy.ts --network local
+# configure correct network in hardhat.config.ts
+cp .env.development .env
+npx hardhat run scripts/deploy.ts
 ```
 
 ## Test
