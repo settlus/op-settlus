@@ -2,13 +2,22 @@
 
 ## Compile contract and test
 ```bash
-pnpm build
+pnpm compile
 pnpm test
 ```
 
 ## Deploy Tenant Factory
  
 ```bash
-# configure network in hardhat.config.ts
-npx hardhat run scripts/TenantFactory.ts --network local
+# configure correct network in hardhat.config.ts
+cp .env.development .env
+npx hardhat run scripts/deploy.ts
+```
+
+## Test
+
+```bash
+# assume running OP devnet locally
+npx hardhat run scripts/deploy.ts --network local
+npx hardhat run scripts/tenant.ts --network local
 ```
