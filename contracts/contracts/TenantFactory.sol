@@ -29,11 +29,11 @@ contract TenantFactory is Ownable {
     require(tenants[name] == address(0), 'Tenant name already exists');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
-    if (ccyType == Tenant.CurrencyType.ERC20) {
+    if (ccyType == Tenant.CurrencyType.ERC20 && ccyAddr == address(0)) {
       BasicERC20 newERC20 = new BasicERC20(address(newTenant), 'ERC20', 'Token');
       newTenant.setCurrencyAddress(address(newERC20));
 
-    } else if (ccyType == Tenant.CurrencyType.SBT) {
+    } else if (ccyType == Tenant.CurrencyType.SBT && ccyAddr == address(0)) {
       ERC20NonTransferable newSBT = new ERC20NonTransferable(address(newTenant), 'Soul Bound Token', 'SBT');
       newTenant.setCurrencyAddress(address(newSBT));
     }
