@@ -42,34 +42,34 @@ contract Tenant is AccessControl {
   address public factory;
   address public creator;
   string public name;
-  CurrencyType public currencyType;
-  address public currencyAddress;
+  CurrencyType public ccyType;
+  address public ccyAddr;
   uint256 public payoutPeriod;
 
   UTXR[] public utxrs;
-  uint256 public lastSettledIndex;
+  uint256 public lastSettledIdx;
 
-  mapping(string => uint256) public reqIdToIndex;
+  mapping(string => uint256) public reqIDToIdx;
 
   constructor(
     address _factory,
     address _admin,
     string memory _name,
-    CurrencyType _currencyType,
-    address _currencyAddress,
+    CurrencyType _ccyType,
+    address _ccyAddr,
     uint256 _payoutPeriod
   ) {
     factory = _factory;
     creator = _admin;
     name = _name;
-    currencyType = _currencyType;
+    ccyType = _ccyType;
     payoutPeriod = _payoutPeriod;
-    lastSettledIndex = 0;
+    lastSettledIdx = 0;
 
-    if (currencyType == CurrencyType.ETH) {
-      currencyAddress = address(0);
+    if (ccyType == CurrencyType.ETH) {
+      ccyAddr = address(0);
     } else {
-      currencyAddress = _currencyAddress;
+      ccyAddr = _ccyAddr;
     }
 
     _grantRole(DEFAULT_ADMIN_ROLE, _admin);
@@ -104,7 +104,7 @@ contract Tenant is AccessControl {
     uint256 tokenID
   ) public onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
-    require(reqIdToIndex[reqID] == 0, 'Record with the same reqID already exists');
+    require(reqIDToIdx[reqID] == 0, 'Record with the same reqID already exists');
 
     address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
 
@@ -120,13 +120,13 @@ contract Tenant is AccessControl {
     });
 
     utxrs.push(newUTXR);
-    reqIdToIndex[reqID] = utxrs.length - 1;
+    reqIDToIdx[reqID] = utxrs.length - 1;
   }
 
   function cancel(string memory reqID) external onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
 
-    uint256 index = reqIdToIndex[reqID];
+    uint256 index = reqIDToIdx[reqID];
     UTXR storage utxr = utxrs[index];
 
     require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
@@ -145,12 +145,14 @@ contract Tenant is AccessControl {
       return;
     }
     uint256 currentLength = utxrs.length;
-
-    for (uint256 i = lastSettledIndex; i < currentLength; i++) {
+    for (uint256 i = lastSettledIdx; i < currentLength; i++) {
       UTXR storage utxr = utxrs[i];
+      if (block.timestamp < utxr.timestamp + payoutPeriod) {
+        break;
+      }
 
+      count += 1;
       if (utxr.status == RecordStatus.Cancelled) {
-        lastSettledIndex = i + 1;
         continue;
       }
 
@@ -168,18 +170,19 @@ contract Tenant is AccessControl {
       } else {
         break;
       }
+      utxr.status = RecordStatus.Settled;
     }
+    lastSettledIdx += count;
   }
 
   function hasPendingSettlements() public view returns (bool) {
     uint256 currentLength = utxrs.length;
-    if (lastSettledIndex < currentLength) {
-      for (uint256 i = lastSettledIndex; i < currentLength; i++) {
-        if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
-          return true;
-        }
+    for (uint256 i = lastSettledIdx; i < currentLength; i++) {
+      if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
+        return true;
       }
     }
+    
     return false;
   }
 
