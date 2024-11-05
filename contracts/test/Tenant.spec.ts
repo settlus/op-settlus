@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { parseEventLogs, getAddress, parseEther } from 'viem'
+import { parseEventLogs, getAddress, parseEther, keccak256, toBytes } from 'viem'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -102,6 +102,34 @@ describe('Tenant', function () {
 
     const sbtTenant = await hre.viem.getContractAt('Tenant', sbtTenantAddress!)
     expect(await sbtTenant.read.currencyAddress()).to.equal(getAddress(sbt.address))
+  })
+
+  it('should assign MASTER_ROLE to tenant creator on deployment and give RECORDER_ROLE to other account', async function () {
+    const { tenantFactory, tenantOwner, publicClient, erc20Owner } = await loadFixture(deployTenantWithFactory)
+
+    const MASTER_ROLE = keccak256(toBytes('MASTER_ROLE'))
+    const RECORDER_ROLE = keccak256(toBytes('RECORDER_ROLE'))
+    const tx = await tenantFactory.write.createTenant(['Tenant Controlled ERC20', 1, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+    })
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const logs = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantFactory').abi,
+    })
+    const tenantAddress = logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
+
+    expect(await tenant.read.hasRole([MASTER_ROLE, getAddress(tenantOwner.account.address)])).to.be.true
+
+    // test grant recorder to other account
+    await tenant.write.addRecorder([erc20Owner.account.address], { account: tenantOwner.account })
+    expect(await tenant.read.hasRole([RECORDER_ROLE, getAddress(erc20Owner.account.address)])).to.be.true
+
+    // test revoke recorder from other account
+    await tenant.write.removeRecorder([erc20Owner.account.address], { account: tenantOwner.account })
+    expect(await tenant.read.hasRole([RECORDER_ROLE, getAddress(erc20Owner.account.address)])).to.be.false
   })
 
   it('should record UTXR with updated NFT owner after NFT is tranferred', async function () {
