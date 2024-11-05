@@ -171,6 +171,7 @@ contract Tenant is AccessControl {
         break;
       }
       utxr.status = RecordStatus.Settled;
+      //need settled event
     }
     lastSettledIdx += count;
   }
