@@ -10,7 +10,6 @@ interface IERC721 {
 }
 
 contract Tenant is AccessControl {
-  bytes32 public constant MASTER_ROLE = keccak256('MASTER_ROLE');
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
 
   enum CurrencyType {
@@ -54,14 +53,14 @@ contract Tenant is AccessControl {
 
   constructor(
     address _factory,
-    address _master,
+    address _admin,
     string memory _name,
     CurrencyType _currencyType,
     address _currencyAddress,
     uint256 _payoutPeriod
   ) {
     factory = _factory;
-    creator = _master;
+    creator = _admin;
     name = _name;
     currencyType = _currencyType;
     payoutPeriod = _payoutPeriod;
@@ -73,24 +72,22 @@ contract Tenant is AccessControl {
       currencyAddress = _currencyAddress;
     }
 
-    _grantRole(DEFAULT_ADMIN_ROLE, _master);
-    _grantRole(MASTER_ROLE, _master);
-    _grantRole(RECORDER_ROLE, _master);
+    _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+    _grantRole(RECORDER_ROLE, _admin);
   }
 
   modifier onlyFactoryOrMaster() {
-    require(msg.sender == factory || hasRole(MASTER_ROLE, msg.sender), 'Not authorized');
+    require(msg.sender == factory || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
     _;
   }
 
-  // Role management functions
-  function addRecorder(address recorder) external onlyRole(MASTER_ROLE) {
+  function addRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
     grantRole(RECORDER_ROLE, recorder);
     emit RecorderAdded(recorder);
   }
 
-  function removeRecorder(address recorder) external onlyRole(MASTER_ROLE) {
-    require(!hasRole(MASTER_ROLE, recorder), 'Cannot remove RECORDER_ROLE from master');
+  function removeRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(!hasRole(DEFAULT_ADMIN_ROLE, recorder), 'Cannot remove RECORDER_ROLE from master');
     revokeRole(RECORDER_ROLE, recorder);
     emit RecorderRemoved(recorder);
   }
@@ -138,7 +135,7 @@ contract Tenant is AccessControl {
     delete reqIdToIndex[reqID];
   }
 
-  function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(MASTER_ROLE) {
+  function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
     require(_payoutPeriod > 0, 'Payout period must be greater than zero');
     payoutPeriod = _payoutPeriod;
   }
@@ -187,7 +184,7 @@ contract Tenant is AccessControl {
   }
 
   // TODO: need this?
-  function mint(uint256 amount) public onlyRole(MASTER_ROLE) {
+  function mint(uint256 amount) public onlyRole(DEFAULT_ADMIN_ROLE) {
     require(currencyType == CurrencyType.ERC20, 'Not ERC20');
     BasicERC20(currencyAddress).mint(address(this), amount);
   }

@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { parseEventLogs, getAddress, parseEther, keccak256, toBytes } from 'viem'
+import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash } from 'viem'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -107,7 +107,7 @@ describe('Tenant', function () {
   it('should assign MASTER_ROLE to tenant creator on deployment and give RECORDER_ROLE to other account', async function () {
     const { tenantFactory, tenantOwner, publicClient, erc20Owner } = await loadFixture(deployTenantWithFactory)
 
-    const MASTER_ROLE = keccak256(toBytes('MASTER_ROLE'))
+    const ADMIN_ROLE = zeroHash
     const RECORDER_ROLE = keccak256(toBytes('RECORDER_ROLE'))
     const tx = await tenantFactory.write.createTenant(['Tenant Controlled ERC20', 1, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
@@ -121,7 +121,7 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    expect(await tenant.read.hasRole([MASTER_ROLE, getAddress(tenantOwner.account.address)])).to.be.true
+    expect(await tenant.read.hasRole([ADMIN_ROLE, getAddress(tenantOwner.account.address)])).to.be.true
 
     // test grant recorder to other account
     await tenant.write.addRecorder([erc20Owner.account.address], { account: tenantOwner.account })
