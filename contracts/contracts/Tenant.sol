@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/access/AccessControl.sol';
 import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 
@@ -9,7 +9,9 @@ interface IERC721 {
   function ownerOf(uint256 tokenId) external view returns (address);
 }
 
-contract Tenant is Ownable {
+contract Tenant is AccessControl {
+  bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
+
   enum CurrencyType {
     ETH,
     ERC20,
@@ -23,6 +25,8 @@ contract Tenant is Ownable {
   }
 
   event Settled(string indexed reqID, uint256 amount, address recipient);
+  event RecorderAdded(address indexed recorder);
+  event RecorderRemoved(address indexed recorder);
 
   struct UTXR {
     string reqID;
@@ -49,14 +53,14 @@ contract Tenant is Ownable {
 
   constructor(
     address _factory,
-    address _owner,
+    address _admin,
     string memory _name,
     CurrencyType _currencyType,
     address _currencyAddress,
     uint256 _payoutPeriod
-  ) Ownable(_owner) {
+  ) {
     factory = _factory;
-    creator = _owner;
+    creator = _admin;
     name = _name;
     currencyType = _currencyType;
     payoutPeriod = _payoutPeriod;
@@ -67,14 +71,28 @@ contract Tenant is Ownable {
     } else {
       currencyAddress = _currencyAddress;
     }
+
+    _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+    _grantRole(RECORDER_ROLE, _admin);
   }
 
-  modifier onlyFactoryOrOwner() {
-    require(msg.sender == factory || msg.sender == owner(), 'Not authorized');
+  modifier onlyFactoryOrAdmin() {
+    require(msg.sender == factory || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
     _;
   }
 
-  function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrOwner {
+  function addRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    grantRole(RECORDER_ROLE, recorder);
+    emit RecorderAdded(recorder);
+  }
+
+  function removeRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(!hasRole(DEFAULT_ADMIN_ROLE, recorder), 'Cannot remove RECORDER_ROLE from master');
+    revokeRole(RECORDER_ROLE, recorder);
+    emit RecorderRemoved(recorder);
+  }
+
+  function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrAdmin {
     currencyAddress = _currencyAddress;
   }
 
@@ -84,8 +102,7 @@ contract Tenant is Ownable {
     uint256 chainID,
     address contractAddr,
     uint256 tokenID
-  ) public onlyOwner {
-    // Ensure reqID is unique
+  ) public onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
     require(reqIdToIndex[reqID] == 0, 'Record with the same reqID already exists');
 
@@ -106,7 +123,7 @@ contract Tenant is Ownable {
     reqIdToIndex[reqID] = utxrs.length - 1;
   }
 
-  function cancel(string memory reqID) external onlyOwner {
+  function cancel(string memory reqID) external onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
 
     uint256 index = reqIdToIndex[reqID];
@@ -115,17 +132,15 @@ contract Tenant is Ownable {
     require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
 
     utxr.status = RecordStatus.Cancelled;
-
-    //TODO: delete mapping?
     delete reqIdToIndex[reqID];
   }
 
-  function setPayoutPeriod(uint256 _payoutPeriod) external onlyOwner {
+  function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
     require(_payoutPeriod > 0, 'Payout period must be greater than zero');
     payoutPeriod = _payoutPeriod;
   }
 
-  function settle() public onlyFactoryOrOwner {
+  function settle() public onlyFactoryOrAdmin {
     if (lastSettledIndex >= utxrs.length) {
       return;
     }
@@ -145,7 +160,6 @@ contract Tenant is Ownable {
         } else if (currencyType == CurrencyType.ERC20) {
           BasicERC20(currencyAddress).transfer(utxr.recipient, utxr.amount);
         } else if (currencyType == CurrencyType.SBT) {
-          // Assuming the SBT contract has a mint function
           ERC20NonTransferable(currencyAddress).mint(utxr.recipient, utxr.amount);
         }
 
@@ -170,7 +184,7 @@ contract Tenant is Ownable {
   }
 
   // TODO: need this?
-  function mint(uint256 amount) public onlyOwner {
+  function mint(uint256 amount) public onlyRole(DEFAULT_ADMIN_ROLE) {
     require(currencyType == CurrencyType.ERC20, 'Not ERC20');
     BasicERC20(currencyAddress).mint(address(this), amount);
   }
