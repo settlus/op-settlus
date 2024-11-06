@@ -76,7 +76,7 @@ contract Tenant is AccessControl {
     _grantRole(RECORDER_ROLE, _admin);
   }
 
-  modifier onlyFactoryOrMaster() {
+  modifier onlyFactoryOrAdmin() {
     require(msg.sender == factory || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
     _;
   }
@@ -92,7 +92,7 @@ contract Tenant is AccessControl {
     emit RecorderRemoved(recorder);
   }
 
-  function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrMaster {
+  function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrAdmin {
     currencyAddress = _currencyAddress;
   }
 
@@ -140,7 +140,7 @@ contract Tenant is AccessControl {
     payoutPeriod = _payoutPeriod;
   }
 
-  function settle() public onlyFactoryOrMaster {
+  function settle() public onlyFactoryOrAdmin {
     if (lastSettledIndex >= utxrs.length) {
       return;
     }
