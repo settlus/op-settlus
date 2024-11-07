@@ -22,7 +22,7 @@ contract TenantFactory is Ownable {
 
   constructor() Ownable(msg.sender) {}
 
-  function createTenantWithExistingContract(
+  function createTenant(
     string memory name,
     Tenant.CurrencyType ccyType,
     address ccyAddr,
@@ -42,7 +42,7 @@ contract TenantFactory is Ownable {
     return address(newTenant);
   }
 
-  function createTenantWithCurrencyContract(
+  function createTenantWithMintableContract(
     string memory name,
     Tenant.CurrencyType ccyType,
     uint256 payoutPeriod,
@@ -51,20 +51,14 @@ contract TenantFactory is Ownable {
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
-    require(ccyType != Tenant.CurrencyType.ETH, 'Use createTenantWithExistingContract function for ETH');
+    require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
     address newCurrencyAddress;
 
-    if (ccyType == Tenant.CurrencyType.ERC20) {
-      BasicERC20 newERC20 = new BasicERC20(address(newTenant), tokenName, tokenSymbol);
-      newTenant.setCurrencyAddress(address(newERC20));
-      newCurrencyAddress = address(newERC20);
-    } else if (ccyType == Tenant.CurrencyType.MINTABLES) {
-      ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
-      newTenant.setCurrencyAddress(address(newMintableContract));
-      newCurrencyAddress = address(newMintableContract);
-    }
+    ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
+    newTenant.setCurrencyAddress(address(newMintableContract));
+    newCurrencyAddress = address(newMintableContract);
 
     tenants[nameHash] = address(newTenant);
     tenantAddresses.push(address(newTenant));
