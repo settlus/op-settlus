@@ -180,7 +180,6 @@ contract Tenant is AccessControl {
     lastSettledIdx += count;
   }
 
-  // TODO: need this?
   function mint(uint256 amount) public onlyRole(DEFAULT_ADMIN_ROLE) {
     require(ccyType == CurrencyType.ERC20, 'Not ERC20');
     BasicERC20(ccyAddr).mint(address(this), amount);
