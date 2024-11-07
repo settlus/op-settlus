@@ -9,13 +9,17 @@ interface IERC721 {
   function ownerOf(uint256 tokenId) external view returns (address);
 }
 
+interface IMintable {
+  function mint(address to, uint256 amount) external;
+}
+
 contract Tenant is AccessControl {
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
 
   enum CurrencyType {
     ETH,
     ERC20,
-    SBT
+    MINTABLES
   }
 
   enum RecordStatus {
@@ -25,6 +29,7 @@ contract Tenant is AccessControl {
   }
 
   event Settled(string indexed reqID, uint256 amount, address recipient);
+  event Cancelled(string indexed reqID);
   event RecorderAdded(address indexed recorder);
   event RecorderRemoved(address indexed recorder);
 
@@ -93,7 +98,7 @@ contract Tenant is AccessControl {
   }
 
   function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrAdmin {
-    currencyAddress = _currencyAddress;
+    ccyAddr = _currencyAddress;
   }
 
   function record(
@@ -104,7 +109,7 @@ contract Tenant is AccessControl {
     uint256 tokenID
   ) public onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
-    require(reqIDToIdx[reqID] == 0, 'Record with the same reqID already exists');
+    require(reqIDToIdx[reqID] == 0, 'Duplicate reqID');
 
     address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
 
@@ -132,7 +137,9 @@ contract Tenant is AccessControl {
     require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
 
     utxr.status = RecordStatus.Cancelled;
-    delete reqIdToIndex[reqID];
+    delete reqIDToIdx[reqID];
+
+    emit Cancelled(reqID);
   }
 
   function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -141,10 +148,12 @@ contract Tenant is AccessControl {
   }
 
   function settle() public onlyFactoryOrAdmin {
-    if (lastSettledIndex >= utxrs.length) {
+    if (lastSettledIdx >= utxrs.length) {
       return;
     }
     uint256 currentLength = utxrs.length;
+    uint256 count = 0;
+
     for (uint256 i = lastSettledIdx; i < currentLength; i++) {
       UTXR storage utxr = utxrs[i];
       if (block.timestamp < utxr.timestamp + payoutPeriod) {
@@ -156,41 +165,25 @@ contract Tenant is AccessControl {
         continue;
       }
 
-      if (block.timestamp >= utxr.timestamp + payoutPeriod) {
-        if (currencyType == CurrencyType.ETH) {
-          payable(utxr.recipient).transfer(utxr.amount);
-        } else if (currencyType == CurrencyType.ERC20) {
-          BasicERC20(currencyAddress).transfer(utxr.recipient, utxr.amount);
-        } else if (currencyType == CurrencyType.SBT) {
-          ERC20NonTransferable(currencyAddress).mint(utxr.recipient, utxr.amount);
-        }
-
-        utxr.status = RecordStatus.Settled;
-        lastSettledIndex = i + 1;
-      } else {
-        break;
+      if (ccyType == CurrencyType.ETH) {
+        payable(utxr.recipient).transfer(utxr.amount);
+      } else if (ccyType == CurrencyType.ERC20) {
+        IERC20(ccyAddr).transfer(utxr.recipient, utxr.amount);
+      } else if (ccyType == CurrencyType.MINTABLES) {
+        IMintable(ccyAddr).mint(utxr.recipient, utxr.amount);
       }
+
       utxr.status = RecordStatus.Settled;
-      //need settled event
+      //TODO: emitting event per settle can be expensive?
+      emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
     }
     lastSettledIdx += count;
   }
 
-  function hasPendingSettlements() public view returns (bool) {
-    uint256 currentLength = utxrs.length;
-    for (uint256 i = lastSettledIdx; i < currentLength; i++) {
-      if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-
   // TODO: need this?
   function mint(uint256 amount) public onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(currencyType == CurrencyType.ERC20, 'Not ERC20');
-    BasicERC20(currencyAddress).mint(address(this), amount);
+    require(ccyType == CurrencyType.ERC20, 'Not ERC20');
+    BasicERC20(ccyAddr).mint(address(this), amount);
   }
 
   receive() external payable {}

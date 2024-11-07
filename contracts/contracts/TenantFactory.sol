@@ -6,7 +6,7 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 contract TenantFactory is Ownable {
-  mapping(string => address) public tenants;
+  mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
 
   event TenantCreated(
@@ -16,32 +16,60 @@ contract TenantFactory is Ownable {
     address ccyAddr,
     uint256 payoutPeriod
   );
+
+  event SettleAll();
   event SettleFailed(address tenantAddress);
 
   constructor() Ownable(msg.sender) {}
 
-  function createTenant(
+  function createTenantWithExistingContract(
     string memory name,
     Tenant.CurrencyType ccyType,
     address ccyAddr,
     uint256 payoutPeriod
   ) public returns (address) {
-    require(tenants[name] == address(0), 'Tenant name already exists');
-
-    Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
-    if (ccyType == Tenant.CurrencyType.ERC20 && ccyAddr == address(0)) {
-      BasicERC20 newERC20 = new BasicERC20(address(newTenant), 'ERC20', 'Token');
-      newTenant.setCurrencyAddress(address(newERC20));
-
-    } else if (ccyType == Tenant.CurrencyType.SBT && ccyAddr == address(0)) {
-      ERC20NonTransferable newSBT = new ERC20NonTransferable(address(newTenant), 'Soul Bound Token', 'SBT');
-      newTenant.setCurrencyAddress(address(newSBT));
+    bytes32 nameHash = keccak256(abi.encodePacked(name));
+    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    if (ccyType == Tenant.CurrencyType.ETH) {
+      require(ccyAddr == address(0), 'ETH currency type requires zero address');
     }
 
-    tenants[name] = address(newTenant);
+    Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
+    tenants[nameHash] = address(newTenant);
     tenantAddresses.push(address(newTenant));
 
     emit TenantCreated(address(newTenant), name, ccyType, ccyAddr, payoutPeriod);
+    return address(newTenant);
+  }
+
+  function createTenantWithCurrencyContract(
+    string memory name,
+    Tenant.CurrencyType ccyType,
+    uint256 payoutPeriod,
+    string memory tokenName,
+    string memory tokenSymbol
+  ) public returns (address) {
+    bytes32 nameHash = keccak256(abi.encodePacked(name));
+    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    require(ccyType != Tenant.CurrencyType.ETH, 'Use createTenantWithExistingContract function for ETH');
+
+    Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
+    address newCurrencyAddress;
+
+    if (ccyType == Tenant.CurrencyType.ERC20) {
+      BasicERC20 newERC20 = new BasicERC20(address(newTenant), tokenName, tokenSymbol);
+      newTenant.setCurrencyAddress(address(newERC20));
+      newCurrencyAddress = address(newERC20);
+    } else if (ccyType == Tenant.CurrencyType.MINTABLES) {
+      ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
+      newTenant.setCurrencyAddress(address(newMintableContract));
+      newCurrencyAddress = address(newMintableContract);
+    }
+
+    tenants[nameHash] = address(newTenant);
+    tenantAddresses.push(address(newTenant));
+
+    emit TenantCreated(address(newTenant), name, ccyType, address(0), payoutPeriod);
     return address(newTenant);
   }
 
@@ -50,14 +78,14 @@ contract TenantFactory is Ownable {
     for (uint256 i = 0; i < tenantNumber; i++) {
       Tenant tenant = Tenant(payable(tenantAddresses[i]));
       try tenant.settle() {} catch {
-        // Settle failed for tenant[i], emit event
         emit SettleFailed(tenantAddresses[i]);
       }
     }
   }
 
   function getTenantAddress(string memory name) public view returns (address) {
-    return tenants[name];
+    bytes32 nameHash = keccak256(abi.encodePacked(name));
+    return tenants[nameHash];
   }
 
   function getTenantAddresses() public view returns (address[] memory) {

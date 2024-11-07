@@ -1,13 +1,17 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { parseEventLogs, getAddress } from 'viem'
+import { parseEventLogs, getAddress, keccak256, encodePacked } from 'viem'
 
 describe('TenantFactory', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameERC20 = 'Tenant ERC20'
   const tenantNameSBT = 'Tenant SBT'
+  const TokenName = 'BaseToken'
+  const TokenSymbol = 'BT'
+  const MintableName = 'Mintable'
+  const MintableSymbol = 'MTB'
   const defaultAddress = '0x0000000000000000000000000000000000000000'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
 
@@ -63,9 +67,12 @@ describe('TenantFactory', function () {
   it('should create a Tenant contract with correct parameters and emit event', async function () {
     const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryFixture)
 
-    const tx = await tenantFactory.write.createTenant([tenantName, 0, defaultAddress, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantName, 0, defaultAddress, BigInt(payoutPeriod)],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -81,9 +88,12 @@ describe('TenantFactory', function () {
     const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryFixture)
 
     // Tenant with ETH currency
-    const ethTx = await tenantFactory.write.createTenant([tenantNameEth, 0, defaultAddress, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const ethTx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantNameEth, 0, defaultAddress, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const ethReceipt = await publicClient.waitForTransactionReceipt({
       hash: ethTx,
     })
@@ -94,9 +104,12 @@ describe('TenantFactory', function () {
     const ethTenantAddress = ethLogs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     // Tenant with ERC20 currency, with default ERC20 contract
-    const erc20Tx = await tenantFactory.write.createTenant([tenantNameERC20, 1, defaultAddress, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const erc20Tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      [tenantNameERC20, 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const erc20Receipt = await publicClient.waitForTransactionReceipt({
       hash: erc20Tx,
     })
@@ -107,9 +120,12 @@ describe('TenantFactory', function () {
     const erc20TenantAddress = erc20Logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     // Tenant with SBT currency, with new default contract
-    const sbtTx = await tenantFactory.write.createTenant([tenantNameSBT, 2, defaultAddress, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const sbtTx = await tenantFactory.write.createTenantWithCurrencyContract(
+      [tenantNameSBT, 2, payoutPeriod, MintableName, MintableSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const sbtReceipt = await publicClient.waitForTransactionReceipt({
       hash: sbtTx,
     })
@@ -129,9 +145,12 @@ describe('TenantFactory', function () {
   it('should verify compatibility with reused ERC20 and SBT contracts', async function () {
     const { tenantFactory, tenantOwner, publicClient, erc20 } = await loadFixture(deployTenantFactoryFixture)
 
-    const tx = await tenantFactory.write.createTenant(['Reused ERC20 Tenant', 1, erc20.address, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      ['Reused ERC20 Tenant', 1, erc20.address, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
       logs: receipt.logs,
@@ -145,10 +164,12 @@ describe('TenantFactory', function () {
   it('should store the Tenant address in the tenants array and mapping', async function () {
     const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryFixture)
 
-    const payoutPeriod = 60 * 60 * 24 // 1 day in seconds
-    const tx = await tenantFactory.write.createTenant([tenantName, 0, defaultAddress, BigInt(payoutPeriod)], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantName, 0, defaultAddress, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -159,7 +180,8 @@ describe('TenantFactory', function () {
     const tenantAddress = (await logs.find((log) => log.eventName === 'TenantCreated'))?.args.tenantAddress
 
     const tenantAddresses = await tenantFactory.read.getTenantAddresses()
-    const fromTenantMap = await tenantFactory.read.tenants([tenantName])
+    const nameHash = keccak256(encodePacked(['string'], [tenantName]))
+    const fromTenantMap = await tenantFactory.read.tenants([nameHash])
 
     expect(tenantAddresses).to.include(tenantAddress)
     expect(fromTenantMap).to.equal(tenantAddress)
@@ -174,9 +196,12 @@ describe('TenantFactory', function () {
     const insufficientBalance = BigInt(50) // Insufficient for tenant2
 
     // Deploy two tenants: one with enough balance, one without
-    const tx1 = await tenantFactory.write.createTenant(['Tenant1', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner1.account,
-    })
+    const tx1 = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Tenant1', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner1.account,
+      }
+    )
     const receipt1 = await publicClient.waitForTransactionReceipt({
       hash: tx1,
     })
@@ -185,9 +210,12 @@ describe('TenantFactory', function () {
       abi: hre.artifacts.readArtifactSync('TenantFactory').abi,
     }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
-    const tx2 = await tenantFactory.write.createTenant(['Tenant2', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner2.account,
-    })
+    const tx2 = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Tenant2', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner2.account,
+      }
+    )
     const receipt2 = await publicClient.waitForTransactionReceipt({
       hash: tx2,
     })
@@ -197,10 +225,10 @@ describe('TenantFactory', function () {
     }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const tenant1 = await hre.viem.getContractAt('Tenant', tenant1Address!)
-    const tenant1Erc20Address = await tenant1.read.currencyAddress()
+    const tenant1Erc20Address = await tenant1.read.ccyAddr()
 
     const tenant2 = await hre.viem.getContractAt('Tenant', tenant2Address!)
-    const tenant2Erc20Address = await tenant2.read.currencyAddress()
+    const tenant2Erc20Address = await tenant2.read.ccyAddr()
 
     const tenant1Erc20 = await hre.viem.getContractAt('BasicERC20', tenant1Erc20Address)
     const tenant2Erc20 = await hre.viem.getContractAt('BasicERC20', tenant2Erc20Address)

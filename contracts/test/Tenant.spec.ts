@@ -8,6 +8,10 @@ describe('Tenant', function () {
   const tenantNameEth = 'Tenant ETH'
   const tenantNameERC20 = 'Tenant ERC20'
   const tenantNameSBT = 'Tenant SBT'
+  const TokenName = 'BaseToken'
+  const TokenSymbol = 'BT'
+  const MintableName = 'Mintable'
+  const MintableSymbol = 'MTB'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
 
   async function deployTenantWithFactory() {
@@ -56,9 +60,12 @@ describe('Tenant', function () {
     const { tenantFactory, tenantOwner, publicClient, erc20, sbt } = await loadFixture(deployTenantWithFactory)
 
     // Deploy Tenant with ETH currency
-    const ethTx = await tenantFactory.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const ethTx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantNameEth, 0, defaultAddress, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const ethReceipt = await publicClient.waitForTransactionReceipt({
       hash: ethTx,
     })
@@ -69,12 +76,15 @@ describe('Tenant', function () {
     const ethTenantAddress = ethLogs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const ethTenant = await hre.viem.getContractAt('Tenant', ethTenantAddress!)
-    expect(await ethTenant.read.currencyAddress()).to.equal(defaultAddress)
+    expect(await ethTenant.read.ccyAddr()).to.equal(defaultAddress)
 
     // Deploy Tenant with ERC20 currency
-    const erc20Tx = await tenantFactory.write.createTenant([tenantNameERC20, 1, erc20.address, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const erc20Tx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantNameERC20, 1, erc20.address, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const erc20Receipt = await publicClient.waitForTransactionReceipt({
       hash: erc20Tx,
     })
@@ -85,12 +95,15 @@ describe('Tenant', function () {
     const erc20TenantAddress = erc20Logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const erc20Tenant = await hre.viem.getContractAt('Tenant', erc20TenantAddress!)
-    expect(await erc20Tenant.read.currencyAddress()).to.equal(getAddress(erc20.address))
+    expect(await erc20Tenant.read.ccyAddr()).to.equal(getAddress(erc20.address))
 
     // Deploy Tenant with SBT currency
-    const sbtTx = await tenantFactory.write.createTenant([tenantNameSBT, 2, sbt.address, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const sbtTx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantNameSBT, 2, sbt.address, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const sbtReceipt = await publicClient.waitForTransactionReceipt({
       hash: sbtTx,
     })
@@ -101,7 +114,7 @@ describe('Tenant', function () {
     const sbtTenantAddress = sbtLogs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const sbtTenant = await hre.viem.getContractAt('Tenant', sbtTenantAddress!)
-    expect(await sbtTenant.read.currencyAddress()).to.equal(getAddress(sbt.address))
+    expect(await sbtTenant.read.ccyAddr()).to.equal(getAddress(sbt.address))
   })
 
   it('should assign MASTER_ROLE to tenant creator on deployment and give RECORDER_ROLE to other account', async function () {
@@ -109,9 +122,12 @@ describe('Tenant', function () {
 
     const ADMIN_ROLE = zeroHash
     const RECORDER_ROLE = keccak256(toBytes('RECORDER_ROLE'))
-    const tx = await tenantFactory.write.createTenant(['Tenant Controlled ERC20', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Tenant Controlled ERC20', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
       logs: receipt.logs,
@@ -136,10 +152,13 @@ describe('Tenant', function () {
     const { tenantFactory, tenantOwner, nftOwner, newNftOwner, publicClient, nft } =
       await loadFixture(deployTenantWithFactory)
 
-    // Deploy a Tenant that uses the SBT currency
-    const sbtTx = await tenantFactory.write.createTenant([tenantNameSBT, 2, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    // Deploy a Tenant that uses the Mintable currency
+    const sbtTx = await tenantFactory.write.createTenantWithCurrencyContract(
+      [tenantNameSBT, 2, payoutPeriod, MintableName, MintableSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const sbtReceipt = await publicClient.waitForTransactionReceipt({
       hash: sbtTx,
     })
@@ -185,9 +204,12 @@ describe('Tenant', function () {
   it('should only allow owner to control treasury funds', async function () {
     const { tenantFactory, tenantOwner, publicClient, nftOwner } = await loadFixture(deployTenantWithFactory)
 
-    const tx = await tenantFactory.write.createTenant(['Tenant Controlled ERC20', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Tenant Controlled ERC20', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
       logs: receipt.logs,
@@ -206,9 +228,12 @@ describe('Tenant', function () {
   it('should set payout period', async function () {
     const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantWithFactory)
 
-    const tx = await tenantFactory.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      [tenantNameEth, 0, defaultAddress, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
       logs: receipt.logs,
@@ -227,9 +252,12 @@ describe('Tenant', function () {
   it('should revert cancel if UTXR is past payout period', async function () {
     const { tenantFactory, tenantOwner, publicClient, nft } = await loadFixture(deployTenantWithFactory)
 
-    const tx = await tenantFactory.write.createTenant(['Test Tenant', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Test Tenant', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const tenantAddress = parseEventLogs({
       logs: receipt.logs,
@@ -259,9 +287,12 @@ describe('Tenant', function () {
   it('should correctly settle multiple UTXRs and skip canceled ones', async function () {
     const { tenantFactory, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(deployTenantWithFactory)
 
-    const tx = await tenantFactory.write.createTenant(['Test Tenant', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Test Tenant', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const tenantAddress = parseEventLogs({
       logs: receipt.logs,
@@ -269,7 +300,7 @@ describe('Tenant', function () {
     }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
-    const tenantErc20Address = await tenant.read.currencyAddress()
+    const tenantErc20Address = await tenant.read.ccyAddr()
     const tenantErc20 = await hre.viem.getContractAt('BasicERC20', tenantErc20Address)
 
     const initialBalance = BigInt(1000)
@@ -302,7 +333,7 @@ describe('Tenant', function () {
     expect(utxr3[7]).to.equal(1)
 
     expect(await tenantErc20.read.balanceOf([nftOwner.account.address])).to.equal(amount1 + amount3)
-    expect(await tenant.read.lastSettledIndex()).to.equal(BigInt(3))
+    expect(await tenant.read.lastSettledIdx()).to.equal(BigInt(3))
   })
 
   it('should settle UTXRs (Tenant with ETH currency)', async function () {
@@ -313,9 +344,12 @@ describe('Tenant', function () {
       address: nftOwner.account.address,
     })
 
-    const tx = await tenantFactory.write.createTenant(['Settle Tenant', 0, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      ['Settle Tenant', 0, defaultAddress, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -358,9 +392,12 @@ describe('Tenant', function () {
 
     const initialTreasuryBalance = BigInt(100000)
 
-    const tx = await tenantFactory.write.createTenant(['Settle Tenant', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Settle Tenant', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -371,7 +408,7 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    const tenantErc20Address = await tenant.read.currencyAddress()
+    const tenantErc20Address = await tenant.read.ccyAddr()
     const tenantErc20 = await hre.viem.getContractAt('BasicERC20', tenantErc20Address)
 
     const initialNftOwnerBalance = await tenantErc20.read.balanceOf([nftOwner.account.address])
@@ -404,9 +441,12 @@ describe('Tenant', function () {
     const initialTreasuryBalance = BigInt(100000)
     const initialNftOwnerBalance = await erc20.read.balanceOf([nftOwner.account.address])
 
-    const tx = await tenantFactory.write.createTenant(['Settle Tenant', 1, erc20.address, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithExistingContract(
+      ['Settle Tenant', 1, erc20.address, payoutPeriod],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -441,9 +481,12 @@ describe('Tenant', function () {
   it('should settle UTXRs (Tenant with SBT currency)', async function () {
     const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(deployTenantWithFactory)
 
-    const tx = await tenantFactory.write.createTenant(['Settle Tenant', 2, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Settle Tenant', 2, payoutPeriod, MintableName, MintableSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
       logs: receipt.logs,
@@ -453,7 +496,7 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    const tenantSBTAddress = await tenant.read.currencyAddress()
+    const tenantSBTAddress = await tenant.read.ccyAddr()
     const tenantSBT = await hre.viem.getContractAt('ERC20NonTransferable', tenantSBTAddress)
 
     const reqID = 'reqId1'
@@ -477,9 +520,12 @@ describe('Tenant', function () {
 
     const initialTreasuryBalance = BigInt(100000)
 
-    const tx = await tenantFactory.write.createTenant(['Settle Tenant', 1, defaultAddress, payoutPeriod], {
-      account: tenantOwner.account,
-    })
+    const tx = await tenantFactory.write.createTenantWithCurrencyContract(
+      ['Settle Tenant', 1, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+      }
+    )
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -489,7 +535,7 @@ describe('Tenant', function () {
     const tenantAddress = logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
-    const tenantErc20Address = await tenant.read.currencyAddress()
+    const tenantErc20Address = await tenant.read.ccyAddr()
     const tenantErc20 = await hre.viem.getContractAt('BasicERC20', tenantErc20Address)
 
     const initialNftOwnerBalance = await tenantErc20.read.balanceOf([nftOwner.account.address])
@@ -529,7 +575,7 @@ describe('Tenant', function () {
     expect(await tenantErc20.read.balanceOf([tenantAddress!])).to.equal(expectedRemainingBalance)
     expect(await tenantErc20.read.balanceOf([nftOwner.account.address])).to.equal(expectedNftOwnerBalance)
 
-    const remainingUtxrs = await tenant.read.utxrs([await tenant.read.lastSettledIndex()])
+    const remainingUtxrs = await tenant.read.utxrs([await tenant.read.lastSettledIdx()])
     expect(remainingUtxrs[0]).to.equal(reqID3)
     expect(remainingUtxrs[1]).to.equal(amount3)
   })
