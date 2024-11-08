@@ -30,9 +30,6 @@ contract TenantFactory is Ownable {
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
-    if (ccyType == Tenant.CurrencyType.ETH) {
-      require(ccyAddr == address(0), 'ETH currency type requires zero address');
-    }
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
     tenants[nameHash] = address(newTenant);
