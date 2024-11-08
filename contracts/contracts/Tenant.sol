@@ -9,13 +9,17 @@ interface IERC721 {
   function ownerOf(uint256 tokenId) external view returns (address);
 }
 
+interface IMintable {
+  function mint(address to, uint256 amount) external;
+}
+
 contract Tenant is AccessControl {
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
 
   enum CurrencyType {
     ETH,
     ERC20,
-    SBT
+    MINTABLES
   }
 
   enum RecordStatus {
@@ -25,6 +29,7 @@ contract Tenant is AccessControl {
   }
 
   event Settled(string indexed reqID, uint256 amount, address recipient);
+  event Cancelled(string indexed reqID);
   event RecorderAdded(address indexed recorder);
   event RecorderRemoved(address indexed recorder);
 
@@ -42,34 +47,34 @@ contract Tenant is AccessControl {
   address public factory;
   address public creator;
   string public name;
-  CurrencyType public currencyType;
-  address public currencyAddress;
+  CurrencyType public ccyType;
+  address public ccyAddr;
   uint256 public payoutPeriod;
 
   UTXR[] public utxrs;
-  uint256 public lastSettledIndex;
+  uint256 public lastSettledIdx;
 
-  mapping(string => uint256) public reqIdToIndex;
+  mapping(string => uint256) public reqIDToIdx;
 
   constructor(
     address _factory,
     address _admin,
     string memory _name,
-    CurrencyType _currencyType,
-    address _currencyAddress,
+    CurrencyType _ccyType,
+    address _ccyAddr,
     uint256 _payoutPeriod
   ) {
     factory = _factory;
     creator = _admin;
     name = _name;
-    currencyType = _currencyType;
+    ccyType = _ccyType;
     payoutPeriod = _payoutPeriod;
-    lastSettledIndex = 0;
+    lastSettledIdx = 0;
 
-    if (currencyType == CurrencyType.ETH) {
-      currencyAddress = address(0);
+    if (ccyType == CurrencyType.ETH) {
+      ccyAddr = address(0);
     } else {
-      currencyAddress = _currencyAddress;
+      ccyAddr = _ccyAddr;
     }
 
     _grantRole(DEFAULT_ADMIN_ROLE, _admin);
@@ -93,7 +98,7 @@ contract Tenant is AccessControl {
   }
 
   function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrAdmin {
-    currencyAddress = _currencyAddress;
+    ccyAddr = _currencyAddress;
   }
 
   function record(
@@ -104,7 +109,7 @@ contract Tenant is AccessControl {
     uint256 tokenID
   ) public onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
-    require(reqIdToIndex[reqID] == 0, 'Record with the same reqID already exists');
+    require(reqIDToIdx[reqID] == 0, 'Duplicate reqID');
 
     address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
 
@@ -120,19 +125,21 @@ contract Tenant is AccessControl {
     });
 
     utxrs.push(newUTXR);
-    reqIdToIndex[reqID] = utxrs.length - 1;
+    reqIDToIdx[reqID] = utxrs.length - 1;
   }
 
   function cancel(string memory reqID) external onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
 
-    uint256 index = reqIdToIndex[reqID];
+    uint256 index = reqIDToIdx[reqID];
     UTXR storage utxr = utxrs[index];
 
     require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
 
     utxr.status = RecordStatus.Cancelled;
-    delete reqIdToIndex[reqID];
+    delete reqIDToIdx[reqID];
+
+    emit Cancelled(reqID);
   }
 
   function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -141,52 +148,36 @@ contract Tenant is AccessControl {
   }
 
   function settle() public onlyFactoryOrAdmin {
-    if (lastSettledIndex >= utxrs.length) {
+    if (lastSettledIdx >= utxrs.length) {
       return;
     }
     uint256 currentLength = utxrs.length;
+    uint256 count = 0;
 
-    for (uint256 i = lastSettledIndex; i < currentLength; i++) {
+    for (uint256 i = lastSettledIdx; i < currentLength; i++) {
       UTXR storage utxr = utxrs[i];
+      if (block.timestamp < utxr.timestamp + payoutPeriod) {
+        break;
+      }
 
+      count += 1;
       if (utxr.status == RecordStatus.Cancelled) {
-        lastSettledIndex = i + 1;
         continue;
       }
 
-      if (block.timestamp >= utxr.timestamp + payoutPeriod) {
-        if (currencyType == CurrencyType.ETH) {
-          payable(utxr.recipient).transfer(utxr.amount);
-        } else if (currencyType == CurrencyType.ERC20) {
-          BasicERC20(currencyAddress).transfer(utxr.recipient, utxr.amount);
-        } else if (currencyType == CurrencyType.SBT) {
-          ERC20NonTransferable(currencyAddress).mint(utxr.recipient, utxr.amount);
-        }
-
-        utxr.status = RecordStatus.Settled;
-        lastSettledIndex = i + 1;
-      } else {
-        break;
+      if (ccyType == CurrencyType.ETH) {
+        payable(utxr.recipient).transfer(utxr.amount);
+      } else if (ccyType == CurrencyType.ERC20) {
+        IERC20(ccyAddr).transfer(utxr.recipient, utxr.amount);
+      } else if (ccyType == CurrencyType.MINTABLES) {
+        IMintable(ccyAddr).mint(utxr.recipient, utxr.amount);
       }
-    }
-  }
 
-  function hasPendingSettlements() public view returns (bool) {
-    uint256 currentLength = utxrs.length;
-    if (lastSettledIndex < currentLength) {
-      for (uint256 i = lastSettledIndex; i < currentLength; i++) {
-        if (utxrs[i].status == RecordStatus.Pending && block.timestamp >= utxrs[i].timestamp + payoutPeriod) {
-          return true;
-        }
-      }
+      utxr.status = RecordStatus.Settled;
+      //TODO: emitting event per settle can be expensive?
+      emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
     }
-    return false;
-  }
-
-  // TODO: need this?
-  function mint(uint256 amount) public onlyRole(DEFAULT_ADMIN_ROLE) {
-    require(currencyType == CurrencyType.ERC20, 'Not ERC20');
-    BasicERC20(currencyAddress).mint(address(this), amount);
+    lastSettledIdx += count;
   }
 
   receive() external payable {}
