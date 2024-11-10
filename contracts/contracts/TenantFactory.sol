@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+import '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol';
 import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
-contract TenantFactory is Ownable {
+contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
 
@@ -20,8 +23,19 @@ contract TenantFactory is Ownable {
   event SettleAll();
   event SettleFailed(address tenantAddress);
 
-  constructor() Ownable(msg.sender) {}
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _disableInitializers();
+  }
 
+  function initialize(address initialOwner) public initializer {
+    __Ownable_init(initialOwner);
+    __UUPSUpgradeable_init();
+  }
+
+  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+  // Your existing functions remain the same...
   function createTenant(
     string memory name,
     Tenant.CurrencyType ccyType,
@@ -51,11 +65,9 @@ contract TenantFactory is Ownable {
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
-    address newCurrencyAddress;
 
     ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
     newTenant.setCurrencyAddress(address(newMintableContract));
-    newCurrencyAddress = address(newMintableContract);
 
     tenants[nameHash] = address(newTenant);
     tenantAddresses.push(address(newTenant));
@@ -64,7 +76,7 @@ contract TenantFactory is Ownable {
     return address(newTenant);
   }
 
-  function settleAll() public {
+  function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
       Tenant tenant = Tenant(payable(tenantAddresses[i]));
@@ -72,6 +84,7 @@ contract TenantFactory is Ownable {
         emit SettleFailed(tenantAddresses[i]);
       }
     }
+    emit SettleAll();
   }
 
   function getTenantAddress(string memory name) public view returns (address) {
