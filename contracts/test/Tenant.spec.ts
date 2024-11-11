@@ -14,15 +14,25 @@ describe('Tenant', function () {
   const MintableSymbol = 'MTB'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
 
-  async function deployTenantWithFactory() {
+  async function deployTenantFactoryProxyFixture() {
     const [deployer, tenantOwner, erc20Owner, nftOwner, newNftOwner] = await hre.viem.getWalletClients()
     const publicClient = await hre.viem.getPublicClient()
 
-    const tenantFactory = await hre.viem.deployContract('TenantFactory', [], {
+    const tenantFactoryImplementation = await hre.viem.deployContract('TenantFactory', [], {
       client: { wallet: deployer },
     })
+    const tenantFactoryProxy = await hre.viem.deployContract(
+      'TenantFactoryProxy',
+      [tenantFactoryImplementation.address, deployer.account.address, '0x'],
+      {
+        client: { wallet: deployer },
+      }
+    )
 
-    // Deploy ERC20 and SBT contracts from tenantOwner, assuming tenantOwner pre-deployed these contracts
+    const tenantFactory = await hre.viem.getContractAt('TenantFactory', tenantFactoryProxy.address)
+    await tenantFactory.write.initialize([deployer.account.address], { account: deployer.account })
+
+    // Deploy ERC20 and Mintable contracts
     const erc20 = await hre.viem.deployContract('BasicERC20', [tenantOwner.account.address, 'Test ERC20', 'TST'], {
       client: { wallet: tenantOwner },
     })
@@ -32,16 +42,11 @@ describe('Tenant', function () {
       { client: { wallet: tenantOwner } }
     )
 
-    // Deploy NFT contract and mint nft to nftOwner
+    // Deploy NFT contract and mint to nftOwner
     const nft = await hre.viem.deployContract('BasicERC721', [nftOwner.account.address], {
       client: { wallet: nftOwner },
     })
-    await nft.write.safeMint([nftOwner.account.address], {
-      account: nftOwner.account,
-    })
-
-    expect(await nft.read.balanceOf([nftOwner.account.address])).to.equal(BigInt(1))
-    expect(await nft.read.ownerOf([BigInt(0)])).to.equal(getAddress(nftOwner.account.address))
+    await nft.write.safeMint([nftOwner.account.address], { account: nftOwner.account })
 
     return {
       tenantFactory,
@@ -57,7 +62,9 @@ describe('Tenant', function () {
   }
 
   it('should verify each tenant has a existing currency address(ERC20, SBT)', async function () {
-    const { tenantFactory, tenantOwner, publicClient, erc20, mintable } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, erc20, mintable } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     // Deploy Tenant with ETH currency
     const ethTx = await tenantFactory.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
@@ -109,7 +116,7 @@ describe('Tenant', function () {
   })
 
   it('should assign MASTER_ROLE to tenant creator on deployment and give RECORDER_ROLE to other account', async function () {
-    const { tenantFactory, tenantOwner, publicClient, erc20Owner } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, erc20Owner } = await loadFixture(deployTenantFactoryProxyFixture)
 
     const ADMIN_ROLE = zeroHash
     const RECORDER_ROLE = keccak256(toBytes('RECORDER_ROLE'))
@@ -140,8 +147,9 @@ describe('Tenant', function () {
   })
 
   it('should record UTXR with updated NFT owner after NFT is tranferred', async function () {
-    const { tenantFactory, tenantOwner, nftOwner, newNftOwner, publicClient, nft } =
-      await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, nftOwner, newNftOwner, publicClient, nft } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     // Deploy a Tenant that uses the Mintable currency
     const mintableTx = await tenantFactory.write.createTenantWithMintableContract(
@@ -197,7 +205,7 @@ describe('Tenant', function () {
   })
 
   it('should only allow owner to control treasury funds', async function () {
-    const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryProxyFixture)
 
     const tx = await tenantFactory.write.createTenantWithMintableContract(
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -221,7 +229,7 @@ describe('Tenant', function () {
   })
 
   it('should set payout period', async function () {
-    const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryProxyFixture)
 
     const tx = await tenantFactory.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
@@ -242,7 +250,7 @@ describe('Tenant', function () {
   })
 
   it('should revert cancel if UTXR is past payout period', async function () {
-    const { tenantFactory, tenantOwner, publicClient, nft } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, nft } = await loadFixture(deployTenantFactoryProxyFixture)
 
     const tx = await tenantFactory.write.createTenantWithMintableContract(
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -277,7 +285,9 @@ describe('Tenant', function () {
   })
 
   it('should correctly settle multiple UTXRs and skip canceled ones', async function () {
-    const { tenantFactory, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     const tx = await tenantFactory.write.createTenantWithMintableContract(
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -326,7 +336,9 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with ETH currency)', async function () {
-    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     const initialTreasuryBalance = parseEther('1')
     const initialNftOwnerBalance = await publicClient.getBalance({
@@ -373,8 +385,9 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with ERC20 currency), with pre-deployed ERC20 contract', async function () {
-    const { tenantFactory, tenantOwner, publicClient, erc20, nftOwner, nft } =
-      await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, erc20, nftOwner, nft } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     const initialTreasuryBalance = BigInt(100000)
     const initialNftOwnerBalance = await erc20.read.balanceOf([nftOwner.account.address])
@@ -414,7 +427,9 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with Mintable currency)', async function () {
-    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     const tx = await tenantFactory.write.createTenantWithMintableContract(
       ['Settle Tenant', 2, payoutPeriod, MintableName, MintableSymbol],
@@ -451,7 +466,9 @@ describe('Tenant', function () {
   })
 
   it('should settle eligible UTXRs and leave ineligible ones (Tenant with Mintable contract)', async function () {
-    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(deployTenantWithFactory)
+    const { tenantFactory, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(
+      deployTenantFactoryProxyFixture
+    )
 
     const tx = await tenantFactory.write.createTenantWithMintableContract(
       ['Settle Tenant', 2, payoutPeriod, TokenName, TokenSymbol],

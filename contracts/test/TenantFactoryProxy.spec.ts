@@ -3,7 +3,7 @@ import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { parseEventLogs, getAddress, zeroAddress } from 'viem'
 
-describe('TenantFactory Proxy', function () {
+describe('TenantFactoryProxy test', function () {
   const tenantName = 'SampleTenant'
   const payoutPeriod = BigInt(60 * 60 * 24)
 
