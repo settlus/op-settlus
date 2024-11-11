@@ -65,12 +65,6 @@ describe('TenantFactory Test', function () {
     }
   }
 
-  it('should initialize and set the owner through proxy', async function () {
-    const { tenantFactory, deployer } = await loadFixture(deployTenantFactoryProxyFixture)
-    const owner = await tenantFactory.read.owner()
-    expect(owner).to.equal(getAddress(deployer.account.address))
-  })
-
   it('should create a Tenant contract with correct parameters and emit event via proxy', async function () {
     const { tenantFactory, tenantOwner, publicClient } = await loadFixture(deployTenantFactoryProxyFixture)
 

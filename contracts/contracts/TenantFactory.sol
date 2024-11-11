@@ -35,7 +35,6 @@ contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-  // Your existing functions remain the same...
   function createTenant(
     string memory name,
     Tenant.CurrencyType ccyType,

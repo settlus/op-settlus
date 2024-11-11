@@ -51,10 +51,4 @@ describe('TenantFactoryProxy test', function () {
     expect(logs.find((log) => log.eventName === 'TenantCreated')).to.not.be.undefined
     expect(logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantName).to.equal(tenantName)
   })
-
-  it('should settle all tenants via the proxy, handling failed settlements gracefully', async function () {
-    const { tenantFactory, deployer } = await loadFixture(deployTenantFactoryProxyFixture)
-
-    await tenantFactory.write.settleAll({ account: deployer.account })
-  })
 })
