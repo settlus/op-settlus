@@ -44,7 +44,7 @@ contract Tenant is AccessControl {
     RecordStatus status;
   }
 
-  address public factory;
+  address public manager;
   address public creator;
   string public name;
   CurrencyType public ccyType;
@@ -57,14 +57,14 @@ contract Tenant is AccessControl {
   mapping(string => uint256) public reqIDToIdx;
 
   constructor(
-    address _factory,
+    address _manager,
     address _admin,
     string memory _name,
     CurrencyType _ccyType,
     address _ccyAddr,
     uint256 _payoutPeriod
   ) {
-    factory = _factory;
+    manager = _manager;
     creator = _admin;
     name = _name;
     ccyType = _ccyType;
@@ -81,9 +81,14 @@ contract Tenant is AccessControl {
     _grantRole(RECORDER_ROLE, _admin);
   }
 
-  modifier onlyFactoryOrAdmin() {
-    require(msg.sender == factory || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
+  modifier onlyManagerOrAdmin() {
+    require(msg.sender == manager || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
     _;
+  }
+
+  function setManager(address newManager) external {
+    require(msg.sender == manager || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
+    manager = newManager;
   }
 
   function addRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -97,7 +102,7 @@ contract Tenant is AccessControl {
     emit RecorderRemoved(recorder);
   }
 
-  function setCurrencyAddress(address _currencyAddress) external onlyFactoryOrAdmin {
+  function setCurrencyAddress(address _currencyAddress) external onlyManagerOrAdmin {
     ccyAddr = _currencyAddress;
   }
 
@@ -128,6 +133,30 @@ contract Tenant is AccessControl {
     reqIDToIdx[reqID] = utxrs.length - 1;
   }
 
+  // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
+  function recordRaw(string memory reqID, uint256 amount, address recipient) public onlyRole(RECORDER_ROLE) {
+    require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
+    require(reqIDToIdx[reqID] == 0, 'Duplicate reqID');
+
+    UTXR memory newUTXR = UTXR({
+      reqID: reqID,
+      amount: amount,
+      timestamp: block.timestamp,
+      recipient: recipient,
+      chainID: 0,
+      contractAddr: address(0),
+      tokenID: 0,
+      status: RecordStatus.Pending
+    });
+
+    utxrs.push(newUTXR);
+    reqIDToIdx[reqID] = utxrs.length - 1;
+  }
+
+  function getUtxrsLength() public view returns (uint256) {
+    return utxrs.length;
+  }
+
   function cancel(string memory reqID) external onlyRole(RECORDER_ROLE) {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
 
@@ -147,7 +176,7 @@ contract Tenant is AccessControl {
     payoutPeriod = _payoutPeriod;
   }
 
-  function settle() public onlyFactoryOrAdmin {
+  function settle() public onlyManagerOrAdmin {
     if (lastSettledIdx >= utxrs.length) {
       return;
     }

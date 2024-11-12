@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
+import '@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol';
+import '@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol';
+import '@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol';
 import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
-contract TenantFactory is Ownable {
+contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
+  address public newVar;
 
   event TenantCreated(
     address tenantAddress,
@@ -20,7 +24,12 @@ contract TenantFactory is Ownable {
   event SettleAll();
   event SettleFailed(address tenantAddress);
 
-  constructor() Ownable(msg.sender) {}
+  function initialize(address owner) public initializer {
+    __Ownable_init(owner);
+    __UUPSUpgradeable_init();
+  }
+
+  function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
   function createTenant(
     string memory name,
@@ -64,7 +73,7 @@ contract TenantFactory is Ownable {
     return address(newTenant);
   }
 
-  function settleAll() public {
+  function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
       Tenant tenant = Tenant(payable(tenantAddresses[i]));
@@ -81,5 +90,9 @@ contract TenantFactory is Ownable {
 
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
+  }
+
+  function newFunction(address newAddress) public onlyOwner {
+    newVar = newAddress;
   }
 }

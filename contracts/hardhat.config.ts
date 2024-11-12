@@ -17,7 +17,7 @@ const getEndpoint = () => {
   return ''
 }
 
-const getPrivateKey = (env: string) => {
+const getPrivateKey = (env?: string) => {
   const { MNEMONIC, PRIVATE_KEY } = process.env
   if (env === 'local') {
     return OP_PRIVATE_KEY;
@@ -43,6 +43,11 @@ const config: HardhatUserConfig = {
       accounts: getPrivateKey('local'),
       chainId: 901,
     },
+    settlus: {
+      url: 'http://3.38.207.140:8545',
+      accounts: getPrivateKey(),
+      chainId: 42069
+    }
   },
   solidity: {
     version: "0.8.27",

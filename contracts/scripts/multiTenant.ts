@@ -3,9 +3,9 @@ import addresses from './contract-addresses.json'
 import hre from 'hardhat'
 import { zeroAddress, parseEther } from 'viem'
 
-// This script is for testing purpose only
+// This script is for testing purpose only, especially for multi-tenant setup on devnet
 async function main() {
-  const tenantFactory = await hre.ethers.getContractAt('TenantFactory', addresses.tenantFactory)
+  const tenantManager = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
 
   // Change tenant name if needed
   const tenantNames = ['TenantOne', 'TenantTwo', 'TenantThree']
@@ -15,11 +15,11 @@ async function main() {
     const tenantName = tenantNames[i]
     const signer = signers[i + 1] // Skip the deployer, use t1, t2, t3
 
-    const tx = await tenantFactory.connect(signer).createTenant(tenantName, 0, zeroAddress, BigInt(10))
+    const tx = await tenantManager.connect(signer).createTenant(tenantName, 0, zeroAddress, BigInt(10))
     await tx.wait()
     console.log(`Created tenant: ${tenantName} by signer: ${signer.address}`)
 
-    const tenantAddress = await tenantFactory.getTenantAddress(tenantName)
+    const tenantAddress = await tenantManager.getTenantAddress(tenantName)
     const sendTx = await signer.sendTransaction({
       to: tenantAddress,
       value: parseEther('10'),
@@ -28,7 +28,7 @@ async function main() {
     console.log(`Sent 10 ETH to tenant: ${tenantAddress} by signer: ${signer.address}`)
   }
 
-  const tenants = tenantNames.map((tenantName) => tenantFactory.getTenantAddress(tenantName))
+  const tenants = tenantNames.map((tenantName) => tenantManager.getTenantAddress(tenantName))
   const interval = 10000
 
   setInterval(async () => {

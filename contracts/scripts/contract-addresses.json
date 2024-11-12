@@ -1,4 +1,5 @@
 {
-  "sampleNft": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-  "tenantFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
+  "sampleNft": "0xB42213cA84477c3d8B96e79BCe5Fd51C68984CCb",
+  "tenantManagerImplementation": "0xAFa78a2f64B52236E68A75d47312Bbd47D2b8bC7",
+  "tenantManagerProxy": "0x4549f2d3E4B5E484cA26DaF4D43feA2b00a963Fb"
 }
