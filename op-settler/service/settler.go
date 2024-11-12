@@ -77,8 +77,8 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		return err
 	}
 
-	contractAddress := common.HexToAddress(GetContractAddress())
-	contractABI := contract.NewTenantFactoryABI()
+	contractAddress := common.HexToAddress(GetProxyAddress())
+	contractABI := contract.NewTenantManagerABI()
 
 	inputData, err := contractABI.Pack("settleAll")
 	if err != nil {
@@ -91,6 +91,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		To:   &contractAddress,
 		Data: inputData,
 	}
+
 	gasLimit, err := client.EstimateGas(ctx, msg)
 	if err != nil {
 		log.Errorf("Failed to estimate gas: %v", err)
@@ -101,7 +102,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		Nonce:    nonce,
 		To:       &contractAddress,
 		Value:    big.NewInt(0),
-		Gas:      gasLimit,
+		Gas:      gasLimit * 2,
 		GasPrice: gasPrice,
 		Data:     inputData,
 	})
