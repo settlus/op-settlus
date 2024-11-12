@@ -86,11 +86,6 @@ contract Tenant is AccessControl {
     _;
   }
 
-  function setManager(address newManager) external {
-    require(msg.sender == manager || hasRole(DEFAULT_ADMIN_ROLE, msg.sender), 'Not authorized');
-    manager = newManager;
-  }
-
   function addRecorder(address recorder) external onlyRole(DEFAULT_ADMIN_ROLE) {
     grantRole(RECORDER_ROLE, recorder);
     emit RecorderAdded(recorder);
