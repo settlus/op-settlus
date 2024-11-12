@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	endpoint        = "RPC_ENDPOINT"
-	privateKey      = "PRIVATE_KEY"
-	contractAddress = "FACTORY_ADDRESS"
+	endpoint     = "RPC_ENDPOINT"
+	privateKey   = "PRIVATE_KEY"
+	proxyAddress = "PROXY_ADDRESS"
 )
 
 func init() {
@@ -33,6 +33,6 @@ func GetPrivateKey() string {
 	return getEnvOrPanic(privateKey)
 }
 
-func GetContractAddress() string {
-	return getEnvOrPanic(contractAddress)
+func GetProxyAddress() string {
+	return getEnvOrPanic(proxyAddress)
 }

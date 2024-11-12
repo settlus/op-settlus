@@ -7,11 +7,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
-//go:embed TenantFactoryABI.json
-var tenantFactory []byte
+//go:embed TenantManagerABI.json
+var tenantManager []byte
 
-func NewTenantFactoryABI() *abi.ABI {
-	return loadABI(tenantFactory)
+func NewTenantManagerABI() *abi.ABI {
+	return loadABI(tenantManager)
 }
 
 func loadABI(json []byte) *abi.ABI {
