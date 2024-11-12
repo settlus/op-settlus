@@ -1,8 +1,10 @@
 import '../env'
 import fs from 'fs'
 import hre from 'hardhat'
+import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
+import { encodeFunctionData } from 'viem'
 
-// issue with viem https://github.com/NomicFoundation/hardhat/issues/5187
+// Issue with viem https://github.com/NomicFoundation/hardhat/issues/5187
 const deployFactory = async (contractName: string, ...args: string[]) => {
   console.log(`Deploying ${contractName}...`)
   const factory = await hre.ethers.getContractFactory(contractName)
@@ -18,23 +20,39 @@ const deployFactory = async (contractName: string, ...args: string[]) => {
 async function main() {
   await hre.run('compile')
   console.log(`Compiling...`)
-  const deployer = process.env.PUBLIC_KEY || ''
+  const [deployer] = await hre.ethers.getSigners()
   const nftContractOwner = deployer
   const nftContractName = 'BasicERC721'
   const nftOwner = process.env.NFT_OWNER || ''
-  const tenantFactoryname = 'TenantFactory'
-  const nftContract = await deployFactory(nftContractName, nftContractOwner!)
+  const tenantManagerName = 'TenantManager'
+
+  // Deploy the NFT contract
+  const nftContract = await deployFactory(nftContractName, nftContractOwner.address)
 
   // Mint an NFT to a specific address
   const mintTx = await nftContract.safeMint(nftOwner)
   await mintTx.wait()
   console.log(`NFT minted to: ${nftOwner}`)
 
-  const tenantFactory = await deployFactory(tenantFactoryname)
+  // Deploy the TenantManager implementation
+  const tenantManagerImplementation = await deployFactory(tenantManagerName)
+  const initData = encodeFunctionData({
+    abi: TenantManagerArtifact.abi,
+    functionName: 'initialize',
+    args: [deployer.address], // owner address
+  })
+
+  // Deploy the Proxy pointing to TenantManager
+  console.log(`Deploying TenantManager Proxy...`)
+  const ProxyFactory = await hre.ethers.getContractFactory('TenantManagerProxy')
+  const tenantManagerProxy = await ProxyFactory.deploy(tenantManagerImplementation.getAddress(), initData)
+  await tenantManagerProxy.waitForDeployment()
+  console.log(`TenantManager Proxy deployed to ${await tenantManagerProxy.getAddress()}`)
 
   const addresses = {
     sampleNft: await nftContract.getAddress(),
-    tenantFactory: await tenantFactory.getAddress(),
+    tenantManagerImplementation: await tenantManagerImplementation.getAddress(),
+    tenantManagerProxy: await tenantManagerProxy.getAddress(),
   }
 
   fs.writeFileSync('./scripts/contract-addresses.json', JSON.stringify(addresses, null, 2))

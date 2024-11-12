@@ -8,9 +8,10 @@ import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
-contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
+  address public newVar;
 
   event TenantCreated(
     address tenantAddress,
@@ -23,13 +24,8 @@ contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   event SettleAll();
   event SettleFailed(address tenantAddress);
 
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor() {
-    _disableInitializers();
-  }
-
-  function initialize(address initialOwner) public initializer {
-    __Ownable_init(initialOwner);
+  function initialize(address owner) public initializer {
+    __Ownable_init(owner);
     __UUPSUpgradeable_init();
   }
 
@@ -64,9 +60,11 @@ contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
+    address newCurrencyAddress;
 
     ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
     newTenant.setCurrencyAddress(address(newMintableContract));
+    newCurrencyAddress = address(newMintableContract);
 
     tenants[nameHash] = address(newTenant);
     tenantAddresses.push(address(newTenant));
@@ -83,7 +81,6 @@ contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         emit SettleFailed(tenantAddresses[i]);
       }
     }
-    emit SettleAll();
   }
 
   function getTenantAddress(string memory name) public view returns (address) {
@@ -93,5 +90,9 @@ contract TenantFactory is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
+  }
+
+  function newFunction(address newAddress) public onlyOwner {
+    newVar = newAddress;
   }
 }
