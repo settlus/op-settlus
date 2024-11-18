@@ -504,6 +504,8 @@ describe('Tenant', function () {
 
     const tenantMintableAddress = await tenant.read.ccyAddr()
     const tenantMintable = await hre.viem.getContractAt('ERC20NonTransferable', tenantMintableAddress)
+    
+    expect(await tenantMintable.read.balanceOf([nftOwner.account.address])).to.equal(BigInt(0))
 
     const reqID = 'reqId1'
     const amount = BigInt(100)
