@@ -11,7 +11,7 @@ var (
 	//go:embed TenantManagerABI.json
 	TenantManager []byte
 	//go:embed TenantABI.json
-	Tenant		[]byte
+	Tenant []byte
 )
 
 func LoadABI(json []byte) *abi.ABI {
