@@ -20,8 +20,13 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod
   );
 
+  event TenantAddressesLength(uint256 length);
+  event TenantSettled(address tenantAddress);
+
   event SettleAll();
   event SettleFailed(address tenantAddress);
+
+  event StepReached(string step);
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
@@ -47,36 +52,35 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return address(newTenant);
   }
 
-  function createTenantWithMintableContract(
+function createTenantWithMintableContract(
     string memory name,
     Tenant.CurrencyType ccyType,
     uint256 payoutPeriod,
     string memory tokenName,
     string memory tokenSymbol
-  ) public returns (address) {
+) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
-    address newCurrencyAddress;
-
     ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
-    newTenant.setCurrencyAddress(address(newMintableContract));
-    newCurrencyAddress = address(newMintableContract);
 
+    newTenant.setCurrencyAddress(address(newMintableContract));
     tenants[nameHash] = address(newTenant);
     tenantAddresses.push(address(newTenant));
 
     emit TenantCreated(address(newTenant), name, ccyType, address(0), payoutPeriod);
     return address(newTenant);
-  }
+}
 
   function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
       Tenant tenant = Tenant(payable(tenantAddresses[i]));
-      try tenant.settle() {} catch {
+      try tenant.settle() {
+        emit TenantSettled(tenantAddresses[i]);
+      } catch {
         emit SettleFailed(tenantAddresses[i]);
       }
     }
