@@ -44,9 +44,9 @@ const config: HardhatUserConfig = {
       chainId: 901,
     },
     settlus: {
-      url: 'http://3.38.207.140:8545',
+      url: 'http://3.38.163.215:8545',
       accounts: getPrivateKey(),
-      chainId: 42069
+      chainId: 5372
     }
   },
   solidity: {
