@@ -1,7 +1,7 @@
-import '../env'
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
 import { formatEther } from 'viem'
+import { vars } from "hardhat/config"
 
 async function main() {
   const tm = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
@@ -16,7 +16,7 @@ async function main() {
       const treasuryBalance = await hre.ethers.provider.getBalance(tenantAddress)
       const tenantCcy = await tenant.ccyAddr()
       const ccyContract = await hre.ethers.getContractAt('ERC20NonTransferable', tenantCcy)
-      const ownerBalance = await ccyContract.balanceOf(process.env.NFT_OWNER!)
+      const ownerBalance = await ccyContract.balanceOf(vars.get('NFT_OWNER'))
       // const settleAllTx = await tm.settleAll({ gasLimit: 10000000, gasPrice: 1000000 });
       // console.log('Transaction hash:', settleAllTx.hash);
 
