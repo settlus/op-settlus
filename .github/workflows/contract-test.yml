@@ -16,6 +16,11 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
+      NFT_OWNER: ${{ vars.NFT_OWNER }}
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v4
