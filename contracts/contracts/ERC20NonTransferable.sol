@@ -15,11 +15,11 @@ contract ERC20NonTransferable is ERC20, AccessControl {
     _mint(to, amount);
   }
 
-  function transfer(address recipient, uint256 amount) public override returns (bool) {
+  function transfer(address, uint256) public pure override returns (bool) {
     revert('non-transferable');
   }
 
-  function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
+  function transferFrom(address, address, uint256) public pure override returns (bool) {
     revert('non-transferable');
   }
 
