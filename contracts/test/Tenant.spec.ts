@@ -1,17 +1,8 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
-import {
-  parseEventLogs,
-  getAddress,
-  parseEther,
-  keccak256,
-  toBytes,
-  zeroHash,
-  encodeFunctionData,
-  zeroAddress,
-} from 'viem'
+import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash, zeroAddress } from 'viem'
+import { nonMintableFixture } from './utils'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -24,64 +15,8 @@ describe('Tenant', function () {
   const MintableSymbol = 'MTB'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
 
-  async function deployTenantManagerProxyFixture() {
-    const [deployer, tenantOwner, erc20Owner, nftOwner, newNftOwner] = await hre.viem.getWalletClients()
-    const publicClient = await hre.viem.getPublicClient()
-
-    const tenantManagerImplementation = await hre.viem.deployContract('TenantManager', [], {
-      client: { wallet: deployer },
-    })
-
-    const initData = encodeFunctionData({
-      abi: TenantManagerArtifact.abi,
-      functionName: 'initialize',
-      args: [deployer.account.address], // owner address
-    })
-
-    const tenantManagerProxy = await hre.viem.deployContract(
-      'TenantManagerProxy',
-      [tenantManagerImplementation.address, initData],
-      {
-        client: { wallet: deployer },
-      }
-    )
-
-    // use proxy to interact with TenantManager
-    const tenantManager = await hre.viem.getContractAt('TenantManager', tenantManagerProxy.address)
-
-    // Deploy ERC20 and Mintable contracts
-    const erc20 = await hre.viem.deployContract('BasicERC20', [tenantOwner.account.address, 'Test ERC20', 'TST'], {
-      client: { wallet: tenantOwner },
-    })
-    const mintable = await hre.viem.deployContract(
-      'ERC20NonTransferable',
-      [tenantOwner.account.address, 'Test SBT', 'SBT'],
-      { client: { wallet: tenantOwner } }
-    )
-
-    // Deploy NFT contract and mint to nftOwner
-    const nft = await hre.viem.deployContract('BasicERC721', [nftOwner.account.address], {
-      client: { wallet: nftOwner },
-    })
-    await nft.write.safeMint([nftOwner.account.address], { account: nftOwner.account })
-
-    return {
-      tenantManager,
-      tenantOwner,
-      nftOwner,
-      newNftOwner,
-      publicClient,
-      erc20,
-      mintable,
-      nft,
-      erc20Owner,
-    }
-  }
-
   it('should verify each tenant has a existing currency address(ERC20, SBT)', async function () {
-    const { tenantManager, tenantOwner, publicClient, erc20, mintable } = await loadFixture(
-      deployTenantManagerProxyFixture
-    )
+    const { tenantManager, tenantOwner, publicClient, erc20, mintable } = await loadFixture(nonMintableFixture)
 
     // Deploy Tenant with ETH currency
     const ethTx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
@@ -133,7 +68,7 @@ describe('Tenant', function () {
   })
 
   it('should assign MASTER_ROLE to tenant creator on deployment and give RECORDER_ROLE to other account', async function () {
-    const { tenantManager, tenantOwner, publicClient, erc20Owner } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient, erc20Owner } = await loadFixture(nonMintableFixture)
 
     const ADMIN_ROLE = zeroHash
     const RECORDER_ROLE = keccak256(toBytes('RECORDER_ROLE'))
@@ -164,9 +99,8 @@ describe('Tenant', function () {
   })
 
   it('should record UTXR with updated NFT owner after NFT is tranferred', async function () {
-    const { tenantManager, tenantOwner, nftOwner, newNftOwner, publicClient, nft } = await loadFixture(
-      deployTenantManagerProxyFixture
-    )
+    const { tenantManager, tenantOwner, nftOwner, newNftOwner, publicClient, nft } =
+      await loadFixture(nonMintableFixture)
 
     // Deploy a Tenant that uses the Mintable currency
     const mintableTx = await tenantManager.write.createTenantWithMintableContract(
@@ -222,7 +156,7 @@ describe('Tenant', function () {
   })
 
   it('should recordRaw on custom record requset', async function () {
-    const { tenantManager, tenantOwner, publicClient, nftOwner } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient, nftOwner } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -257,7 +191,7 @@ describe('Tenant', function () {
   })
 
   it('should only allow owner to control treasury funds', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -281,7 +215,7 @@ describe('Tenant', function () {
   })
 
   it('should set payout period', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
@@ -302,7 +236,7 @@ describe('Tenant', function () {
   })
 
   it('should revert cancel if UTXR is past payout period', async function () {
-    const { tenantManager, tenantOwner, publicClient, nft } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient, nft } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -337,9 +271,7 @@ describe('Tenant', function () {
   })
 
   it('should correctly settle multiple UTXRs and skip canceled ones', async function () {
-    const { tenantManager, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(
-      deployTenantManagerProxyFixture
-    )
+    const { tenantManager, tenantOwner, publicClient, nft, nftOwner } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -394,7 +326,7 @@ describe('Tenant', function () {
       publicClient,
       nftOwner,
       nft,
-    } = await loadFixture(deployTenantManagerProxyFixture)
+    } = await loadFixture(nonMintableFixture)
 
     const initialTreasuryBalance = parseEther('1')
     const initialNftOwnerBalance = await publicClient.getBalance({
@@ -441,9 +373,7 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with ERC20 currency), with pre-deployed ERC20 contract', async function () {
-    const { tenantManager, tenantOwner, publicClient, erc20, nftOwner, nft } = await loadFixture(
-      deployTenantManagerProxyFixture
-    )
+    const { tenantManager, tenantOwner, publicClient, erc20, nftOwner, nft } = await loadFixture(nonMintableFixture)
 
     const initialTreasuryBalance = BigInt(100000)
     const initialNftOwnerBalance = await erc20.read.balanceOf([nftOwner.account.address])
@@ -483,9 +413,7 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with Mintable currency)', async function () {
-    const { tenantManager, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(
-      deployTenantManagerProxyFixture
-    )
+    const { tenantManager, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Settle Tenant', 2, payoutPeriod, MintableName, MintableSymbol],
@@ -504,7 +432,7 @@ describe('Tenant', function () {
 
     const tenantMintableAddress = await tenant.read.ccyAddr()
     const tenantMintable = await hre.viem.getContractAt('ERC20NonTransferable', tenantMintableAddress)
-    
+
     expect(await tenantMintable.read.balanceOf([nftOwner.account.address])).to.equal(BigInt(0))
 
     const reqID = 'reqId1'
@@ -530,7 +458,7 @@ describe('Tenant', function () {
       publicClient,
       nftOwner,
       nft,
-    } = await loadFixture(deployTenantManagerProxyFixture)
+    } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Settle Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
