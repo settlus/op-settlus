@@ -9,7 +9,6 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 interface ITenant {
-  function getRemainingUTXRCount() external view returns (uint256);
   function settle() external returns (uint256);
 }
 
