@@ -17,7 +17,6 @@ const getEndpoint = () => {
 }
 
 const getPrivateKey = (env?: string) => {
-  const mnemonic = vars.get('MNEMONIC')
   const privateKey = vars.get('PRIVATE_KEY')
 
   if (env === 'local') {
@@ -27,13 +26,8 @@ const getPrivateKey = (env?: string) => {
   if (privateKey && privateKey !== '') {
     return [privateKey];
   }
-  if (mnemonic && mnemonic !== '') {
-    return {
-      mnemonic: mnemonic,
-    };
-  }
-
-  console.log('Private Key or mnemonic Not Set! Please set up .env');
+  
+  console.log('Private Key Not Set! Please set up .env');
   return [];
 }
 
