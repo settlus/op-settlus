@@ -316,7 +316,7 @@ describe('Tenant', function () {
     expect(utxr3[7]).to.equal(1)
 
     expect(await tenantMintable.read.balanceOf([nftOwner.account.address])).to.equal(amount1 + amount3)
-    expect(await tenant.read.lastSettledIdx()).to.equal(BigInt(3))
+    expect(await tenant.read.nextToSettleIdx()).to.equal(BigInt(3))
   })
 
   it('should settle UTXRs (Tenant with ETH currency)', async function () {
@@ -506,7 +506,7 @@ describe('Tenant', function () {
     const expectedNftOwnerBalance = initialNftOwnerBalance + amount1 + amount2 // nftOwner received amounts from reqID1 and reqID2
     expect(await tenantMintable.read.balanceOf([nftOwner.account.address])).to.equal(expectedNftOwnerBalance)
 
-    const remainingUtxrs = await tenant.read.utxrs([await tenant.read.lastSettledIdx()])
+    const remainingUtxrs = await tenant.read.utxrs([await tenant.read.nextToSettleIdx()])
     expect(remainingUtxrs[0]).to.equal(reqID3)
     expect(remainingUtxrs[1]).to.equal(amount3)
   })

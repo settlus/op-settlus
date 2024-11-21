@@ -13,8 +13,16 @@ interface IMintable {
   function mint(address to, uint256 amount) external;
 }
 
+interface ITenantManager {
+  function addSettlementSchedule(uint256 timestamp) external;
+  function removeSettleRequiredTenant() external;
+  function settlementSchedule(address tenantAddress) external view returns (uint256);
+}
+
 contract Tenant is AccessControl {
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
+  // 5 records for tenant per every block seems enough
+  uint256 public constant MAX_BATCH_SIZE = 5;
 
   enum CurrencyType {
     ETH,
@@ -52,7 +60,7 @@ contract Tenant is AccessControl {
   uint256 public payoutPeriod;
 
   UTXR[] public utxrs;
-  uint256 public lastSettledIdx;
+  uint256 public nextToSettleIdx;
 
   mapping(string => uint256) public reqIDToIdx;
 
@@ -69,7 +77,6 @@ contract Tenant is AccessControl {
     name = _name;
     ccyType = _ccyType;
     payoutPeriod = _payoutPeriod;
-    lastSettledIdx = 0;
 
     if (ccyType == CurrencyType.ETH) {
       ccyAddr = address(0);
@@ -111,12 +118,13 @@ contract Tenant is AccessControl {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
     require(reqIDToIdx[reqID] == 0, 'Duplicate reqID');
 
+    uint256 payoutTimestamp = block.timestamp + payoutPeriod;
     address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
 
     UTXR memory newUTXR = UTXR({
       reqID: reqID,
       amount: amount,
-      timestamp: block.timestamp,
+      timestamp: payoutTimestamp,
       recipient: nftOwner,
       chainID: chainID,
       contractAddr: contractAddr,
@@ -126,6 +134,10 @@ contract Tenant is AccessControl {
 
     utxrs.push(newUTXR);
     reqIDToIdx[reqID] = utxrs.length - 1;
+
+    if (ITenantManager(manager).settlementSchedule(address(this)) == 0) {
+      ITenantManager(manager).addSettlementSchedule(payoutTimestamp);
+    }
   }
 
   // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
@@ -133,10 +145,12 @@ contract Tenant is AccessControl {
     require(bytes(reqID).length > 0, 'reqID cannot be an empty string');
     require(reqIDToIdx[reqID] == 0, 'Duplicate reqID');
 
+    uint256 payoutTimestamp = block.timestamp + payoutPeriod;
+
     UTXR memory newUTXR = UTXR({
       reqID: reqID,
       amount: amount,
-      timestamp: block.timestamp,
+      timestamp: payoutTimestamp,
       recipient: recipient,
       chainID: 0,
       contractAddr: address(0),
@@ -146,6 +160,10 @@ contract Tenant is AccessControl {
 
     utxrs.push(newUTXR);
     reqIDToIdx[reqID] = utxrs.length - 1;
+
+    if (ITenantManager(manager).settlementSchedule(address(this)) == 0) {
+      ITenantManager(manager).addSettlementSchedule(payoutTimestamp);
+    }
   }
 
   function getUtxrsLength() public view returns (uint256) {
@@ -158,7 +176,7 @@ contract Tenant is AccessControl {
     uint256 index = reqIDToIdx[reqID];
     UTXR storage utxr = utxrs[index];
 
-    require(block.timestamp < utxr.timestamp + payoutPeriod, 'Cannot cancel, UTXR past payout period');
+    require(block.timestamp < utxr.timestamp, 'Cannot cancel, UTXR past payout period');
 
     utxr.status = RecordStatus.Cancelled;
     delete reqIDToIdx[reqID];
@@ -168,19 +186,23 @@ contract Tenant is AccessControl {
 
   function setPayoutPeriod(uint256 _payoutPeriod) external onlyRole(DEFAULT_ADMIN_ROLE) {
     require(_payoutPeriod > 0, 'Payout period must be greater than zero');
+    // need to settle all pending UTXRs before changing payout period, otherwise utxr array is no more FIFO
+    require(getRemainingUTXRCount() == 0, 'Cannot change payout period with pending UTXRs');
     payoutPeriod = _payoutPeriod;
   }
 
-  function settle() public onlyManagerOrAdmin {
-    if (lastSettledIdx >= utxrs.length) {
-      return;
-    }
+  function settle() public onlyManagerOrAdmin returns (uint256) {
+    if (nextToSettleIdx == utxrs.length) return 0;
     uint256 currentLength = utxrs.length;
     uint256 count = 0;
 
-    for (uint256 i = lastSettledIdx; i < currentLength; i++) {
+    for (uint256 i = nextToSettleIdx; i < currentLength; i++) {
+      if (count >= MAX_BATCH_SIZE) {
+        break;
+      }
+
       UTXR storage utxr = utxrs[i];
-      if (block.timestamp < utxr.timestamp + payoutPeriod) {
+      if (block.timestamp < utxr.timestamp) {
         break;
       }
 
@@ -201,7 +223,19 @@ contract Tenant is AccessControl {
       //TODO: emitting event per settle can be expensive?
       emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
     }
-    lastSettledIdx += count;
+    nextToSettleIdx += count;
+
+    if (nextToSettleIdx < utxrs.length) {
+      ITenantManager(manager).addSettlementSchedule(utxrs[nextToSettleIdx].timestamp);
+    } else {
+      ITenantManager(manager).removeSettleRequiredTenant();
+    }
+
+    return count;
+  }
+
+  function getRemainingUTXRCount() public view returns (uint256) {
+    return utxrs.length - nextToSettleIdx;
   }
 
   receive() external payable {}

@@ -20,6 +20,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+type TenantSchedule struct {
+	Address  common.Address
+	Schedule *big.Int
+}
+
 func Start(ctx context.Context) error {
 	client, err := ethclient.Dial(GetEthEndpoint())
 	if err != nil {
@@ -44,7 +49,8 @@ func Start(ctx context.Context) error {
 			return err
 		case header := <-headerChannel:
 			log.Printf("New block: %v", header.Number.String())
-			err := callSettleAll(ctx, client)
+			blockTime := header.Time
+			err := callSettleAll(ctx, client, blockTime)
 			if err != nil {
 				log.Errorf("Failed to call settleAll: %v", err)
 			}
@@ -52,7 +58,7 @@ func Start(ctx context.Context) error {
 	}
 }
 
-func callSettleAll(ctx context.Context, client *ethclient.Client) error {
+func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTime uint64) error {
 	privateKey, err := crypto.HexToECDSA(GetPrivateKey())
 	if err != nil {
 		log.Errorf("Failed to load private key: %v", err)
@@ -81,13 +87,27 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	proxyAddress := common.HexToAddress(GetProxyAddress())
 	tenantManagerABI := contract.LoadABI(contract.TenantManager)
 
-	err = logTenantStates(ctx, client, tenantManagerABI, proxyAddress)
+	targetTenants, err := getSettlementSchedule(ctx, client, tenantManagerABI, proxyAddress)
 	if err != nil {
-		log.Errorf("Failed to log tenant states: %v", err)
+		log.Errorf("Failed to get settle required tenants: %v", err)
 		return err
 	}
 
-	inputData, err := tenantManagerABI.Pack("settleAll")
+	readyToSettleTenants := filterPassedScheduleTenants(targetTenants, new(big.Int).SetUint64(currentBlockTime))
+	if len(readyToSettleTenants) == 0 {
+		log.Infof("No tenants to settle")
+		return nil
+	}
+
+	maxBatchSizeStr := GetMaxBatchSize()
+	maxBatchSize := new(big.Int)
+	maxBatchSize, ok := maxBatchSize.SetString(maxBatchSizeStr, 10)
+	if !ok {
+		log.Errorf("Failed to convert maxBatchSize string to big.Int: %s", maxBatchSizeStr)
+		return err
+	}
+
+	inputData, err := tenantManagerABI.Pack("settleAll", readyToSettleTenants, maxBatchSize)
 	if err != nil {
 		log.Errorf("Failed to pack input data: %v", err)
 		return err
@@ -187,80 +207,58 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	return nil
 }
 
-func logTenantStates(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) error {
-	getTenantAddressesData, err := tenantManagerABI.Pack("getTenantAddresses")
+func getSettlementSchedule(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) ([]TenantSchedule, error) {
+	getSettlementScheduleData, err := tenantManagerABI.Pack("getTenantSettlementSchedules")
 	if err != nil {
-		log.Errorf("Failed to pack data for getTenantAddresses: %v", err)
-		return err
+		log.Errorf("Failed to pack data for getTenantSettlementSchedules: %v", err)
+		return nil, err
 	}
 
 	msg := ethereum.CallMsg{
 		To:   &contractAddress,
-		Data: getTenantAddressesData,
+		Data: getSettlementScheduleData,
 	}
 
 	result, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Errorf("Failed to call contract for getTenantAddresses: %v", err)
-		return err
+		log.Errorf("Failed to call contract for getTenantSettlementSchedules: %v", err)
+		return nil, err
 	}
 
-	var tenantAddresses []common.Address
-	err = tenantManagerABI.UnpackIntoInterface(&tenantAddresses, "getTenantAddresses", result)
+	var addresses []common.Address
+	var schedules []*big.Int
+
+	err = tenantManagerABI.UnpackIntoInterface(&struct {
+		Addresses *[]common.Address
+		Schedules *[]*big.Int
+	}{
+		Addresses: &addresses,
+		Schedules: &schedules,
+	}, "getTenantSettlementSchedules", result)
 	if err != nil {
-		log.Errorf("Failed to unpack getTenantAddresses result: %v", err)
-		return err
+		return nil, err
 	}
 
-	for _, tenantAddress := range tenantAddresses {
-		tenantABI := contract.LoadABI(contract.Tenant)
-		lastSettledIdxData, err := tenantABI.Pack("lastSettledIdx")
-		if err != nil {
-			log.Errorf("Failed to pack data for lastSettledIdx: %v", err)
-			return err
+	tenantSchedules := make([]TenantSchedule, len(addresses))
+
+	for i := range addresses {
+		tenantSchedules[i] = TenantSchedule{
+			Address:  addresses[i],
+			Schedule: schedules[i],
 		}
-
-		tenantMsg := ethereum.CallMsg{
-			To:   &tenantAddress,
-			Data: lastSettledIdxData,
-		}
-
-		tenantResult, err := client.CallContract(ctx, tenantMsg, nil)
-		if err != nil {
-			log.Errorf("Failed to call contract for lastSettledIdx: %v", err)
-			return err
-		}
-
-		lastSettledIdx := new(big.Int)
-		err = tenantABI.UnpackIntoInterface(&lastSettledIdx, "lastSettledIdx", tenantResult)
-		if err != nil {
-			log.Errorf("Failed to unpack lastSettledIdx result: %v", err)
-			return err
-		}
-
-		utxrLength := 0
-		for {
-			utxrIndexData, err := tenantABI.Pack("utxrs", big.NewInt(int64(utxrLength)))
-			if err != nil {
-				log.Errorf("Failed to pack data for utxrs: %v", err)
-				return err
-			}
-
-			tenantMsg = ethereum.CallMsg{
-				To:   &tenantAddress,
-				Data: utxrIndexData,
-			}
-
-			_, err = client.CallContract(ctx, tenantMsg, nil)
-			if err != nil {
-				break
-			}
-
-			utxrLength++
-		}
-
-		log.Debugf("Tenant: %s, UTXR length: %d, LastSettledIdx: %d", tenantAddress.Hex(), utxrLength, lastSettledIdx.Uint64())
 	}
 
-	return nil
+	return tenantSchedules, nil
+}
+
+func filterPassedScheduleTenants(tenantSchedules []TenantSchedule, currentBlockTime *big.Int) []common.Address {
+	var passedScheduleTenants []common.Address
+
+	for _, tenant := range tenantSchedules {
+		if tenant.Schedule.Cmp(currentBlockTime) <= 0 {
+			passedScheduleTenants = append(passedScheduleTenants, tenant.Address)
+		}
+	}
+
+	return passedScheduleTenants
 }

@@ -8,9 +8,17 @@ import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
+interface ITenant {
+  function getRemainingUTXRCount() external view returns (uint256);
+  function settle() external returns (uint256);
+}
+
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
+
+  mapping(address => uint256) public settlementSchedule;
+  address[] public settleRequiredTenantAddresses;
 
   event TenantCreated(
     address tenantAddress,
@@ -23,10 +31,12 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   event TenantAddressesLength(uint256 length);
   event TenantSettled(address tenantAddress);
 
-  event SettleAll();
   event SettleFailed(address tenantAddress);
+  event AddSettlementSchedule(address tenantAddress, uint256 settleTime);
+  event RemoveSettleRequiredTenant(address tenantAddress);
 
-  event StepReached(string step);
+  error DuplicateTenantName();
+  error NotScheduledTenant();
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
@@ -42,7 +52,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
-    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
     tenants[nameHash] = address(newTenant);
@@ -60,7 +70,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     string memory tokenSymbol
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
-    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
@@ -74,16 +84,44 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return address(newTenant);
   }
 
-  function settleAll() public onlyOwner {
-    uint256 tenantNumber = tenantAddresses.length;
+  function settleAll(address[] memory targetTenants, uint256 maxBatchSize) public onlyOwner {
+    uint256 tenantNumber = targetTenants.length;
+    uint256 count = 0;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      Tenant tenant = Tenant(payable(tenantAddresses[i]));
-      try tenant.settle() {
-        emit TenantSettled(tenantAddresses[i]);
+      if (settlementSchedule[targetTenants[i]] == 0) revert NotScheduledTenant();
+      if (count >= maxBatchSize) {
+        break;
+      }
+
+      try ITenant(targetTenants[i]).settle() returns (uint256 settledCount) {
+        count += settledCount;
+        emit TenantSettled(targetTenants[i]);
       } catch {
-        emit SettleFailed(tenantAddresses[i]);
+        emit SettleFailed(targetTenants[i]);
       }
     }
+  }
+
+  function addSettlementSchedule(uint256 settleTime) external {
+    if (settlementSchedule[msg.sender] == 0) {
+      settleRequiredTenantAddresses.push(msg.sender);
+    }
+    settlementSchedule[msg.sender] = settleTime;
+    emit AddSettlementSchedule(msg.sender, settleTime);
+  }
+
+  function removeSettleRequiredTenant() external {
+    delete settlementSchedule[msg.sender];
+
+    for (uint256 i = 0; i < settleRequiredTenantAddresses.length; i++) {
+      if (settleRequiredTenantAddresses[i] == msg.sender) {
+        settleRequiredTenantAddresses[i] = settleRequiredTenantAddresses[settleRequiredTenantAddresses.length - 1];
+        settleRequiredTenantAddresses.pop();
+        break;
+      }
+    }
+
+    emit RemoveSettleRequiredTenant(msg.sender);
   }
 
   function getTenantAddress(string memory name) public view returns (address) {
@@ -93,6 +131,21 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
+  }
+
+  function getSettleRequiredTenants() public view returns (address[] memory) {
+    return settleRequiredTenantAddresses;
+  }
+
+  function getTenantSettlementSchedules() public view returns (address[] memory addresses, uint256[] memory schedules) {
+    addresses = settleRequiredTenantAddresses;
+    schedules = new uint256[](settleRequiredTenantAddresses.length);
+
+    for (uint i = 0; i < settleRequiredTenantAddresses.length; i++) {
+      schedules[i] = settlementSchedule[settleRequiredTenantAddresses[i]];
+    }
+
+    return (addresses, schedules);
   }
 
   function getOwner() public view returns (address) {
