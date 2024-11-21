@@ -11,6 +11,7 @@ const (
 	endpoint     = "RPC_ENDPOINT"
 	privateKey   = "PRIVATE_KEY"
 	proxyAddress = "PROXY_ADDRESS"
+	maxBatchSize = "MAX_BATCH_SIZE"
 )
 
 func init() {
@@ -35,4 +36,8 @@ func GetPrivateKey() string {
 
 func GetProxyAddress() string {
 	return getEnvOrPanic(proxyAddress)
+}
+
+func GetMaxBatchSize() string {
+	return getEnvOrPanic(maxBatchSize)
 }

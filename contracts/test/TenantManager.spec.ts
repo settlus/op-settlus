@@ -8,6 +8,7 @@ describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameMintable = 'Tenant Mintable'
+  const maxBatchSize = BigInt(200)
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -85,8 +86,8 @@ describe('TenantManager Test', function () {
     expect(fromTenantMap).to.equal(tenantAddress)
   })
 
-  it('should handle settleAll with partial success via proxy', async function () {
-    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(mintableFixture)
+  it('should handle settleAll with partial success via proxy (ERC20)', async function () {
+    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(deployTenantManagerProxyFixture)
     const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
 
     const initialTreasuryBalance = BigInt(1000)
@@ -148,7 +149,9 @@ describe('TenantManager Test', function () {
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
 
     // Call settleAll to settle balances across tenants, no error or revert expeceted
-    await tenantManager.write.settleAll({ account: deployer.account })
+    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+      account: deployer.account,
+    })
 
     const tenant1BalanceAfter = await tenant1Erc20.read.balanceOf([tenant1Address!])
     const tenant2BalanceAfter = await tenant2Erc20.read.balanceOf([tenant2Address!])
@@ -159,5 +162,72 @@ describe('TenantManager Test', function () {
     expect(tenant2BalanceAfter).to.equal(insufficientBalance)
     expect(recipientBalanceAtTenant1).to.equal(amountToSettle)
     expect(recipientBalanceAtTenant2).to.equal(BigInt(0))
+  })
+
+  it('should handle settleAll via proxy (Mintables)', async function () {
+    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(deployTenantManagerProxyFixture)
+    const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
+
+    // Create tenants using the ERC20 tokens
+    const tx1 = await tenantManager.write.createTenantWithMintableContract(
+      ['Tenant1', 2, payoutPeriod, 'MintableOne', 'MTB'],
+      {
+        account: tenantOwner1.account,
+      }
+    )
+    const tenant1Address = parseEventLogs({
+      logs: (await publicClient.waitForTransactionReceipt({ hash: tx1 })).logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tx2 = await tenantManager.write.createTenantWithMintableContract(
+      ['Tenant2', 2, payoutPeriod, 'MintableTwo', 'BTM'],
+      {
+        account: tenantOwner2.account,
+      }
+    )
+    const tenant2Address = parseEventLogs({
+      logs: (await publicClient.waitForTransactionReceipt({ hash: tx2 })).logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tenant1 = await hre.viem.getContractAt('Tenant', tenant1Address!)
+    const tenant2 = await hre.viem.getContractAt('Tenant', tenant2Address!)
+
+    const tenant1ccy = await hre.viem.getContractAt('ERC20NonTransferable', await tenant1.read.ccyAddr())
+    const tenant2ccy = await hre.viem.getContractAt('ERC20NonTransferable', await tenant2.read.ccyAddr())
+
+    const reqID1 = 'reqId1'
+    const reqID2 = 'reqId2'
+    const amountToSettle = BigInt(500)
+
+    await tenant1.write.record([reqID1, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+      account: tenantOwner1.account,
+    })
+
+    await tenant2.write.record([reqID2, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+      account: tenantOwner2.account,
+    })
+
+    const scheduledTenantList = await tenantManager.read.getSettleRequiredTenants()
+    expect(scheduledTenantList).to.include(tenant1Address!)
+    expect(scheduledTenantList).to.include(tenant2Address!)
+
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+
+    // // Call settleAll to settle balances across tenants, no error or revert expeceted
+    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+      account: deployer.account,
+    })
+
+    const scheduledTenantListAfter = await tenantManager.read.getSettleRequiredTenants()
+
+    const recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
+    const recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
+
+    expect(recipientBalanceAtTenant1).to.equal(amountToSettle)
+    expect(recipientBalanceAtTenant2).to.equal(amountToSettle)
+    expect(scheduledTenantListAfter).not.to.include(tenant1Address!)
+    expect(scheduledTenantListAfter).not.to.include(tenant2Address!)
   })
 })
