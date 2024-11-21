@@ -52,13 +52,13 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return address(newTenant);
   }
 
-function createTenantWithMintableContract(
+  function createTenantWithMintableContract(
     string memory name,
     Tenant.CurrencyType ccyType,
     uint256 payoutPeriod,
     string memory tokenName,
     string memory tokenSymbol
-) public returns (address) {
+  ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
@@ -72,7 +72,7 @@ function createTenantWithMintableContract(
 
     emit TenantCreated(address(newTenant), name, ccyType, address(0), payoutPeriod);
     return address(newTenant);
-}
+  }
 
   function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;

@@ -5,7 +5,7 @@ import { formatEther } from 'viem'
 
 async function main() {
   const tm = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
-  const tenants = await tm.getTenantAddresses({gasLimit: 100000000})
+  const tenants = await tm.getTenantAddresses({ gasLimit: 100000000 })
 
   // Check each tenant's lastSettledIndex and treasury balance
   for (const tenantAddress of tenants) {

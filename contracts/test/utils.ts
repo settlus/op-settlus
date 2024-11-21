@@ -1,10 +1,7 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
-import {
-  getAddress,
-  encodeFunctionData,
-} from 'viem'
+import { getAddress, encodeFunctionData } from 'viem'
 
 export function mintableFixture() {
   return deployTenantManagerProxyFixture({ isMintable: true })
@@ -45,11 +42,7 @@ async function deployTenantManagerProxyFixture({ isMintable }: { isMintable: boo
   })
   const mintable = await hre.viem.deployContract(
     'ERC20NonTransferable',
-    [
-      tenantOwner.account.address,
-      isMintable ? 'Test Mintable' : 'Test SBT',
-      isMintable ? 'Mintable' : 'SBT'
-    ],
+    [tenantOwner.account.address, isMintable ? 'Test Mintable' : 'Test SBT', isMintable ? 'Mintable' : 'SBT'],
     { client: { wallet: tenantOwner } }
   )
 

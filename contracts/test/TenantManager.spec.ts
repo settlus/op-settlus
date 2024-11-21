@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { parseEventLogs, getAddress, keccak256, encodePacked } from 'viem'
-import {mintableFixture} from "./utils";
+import { mintableFixture } from './utils'
 
 describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'

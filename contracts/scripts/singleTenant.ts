@@ -34,7 +34,6 @@ async function main() {
       const tx = await tenant.connect(signer).record(reqId, 10, 1, addresses.sampleNft, 0)
       await tx.wait()
       console.log(`Recorded transaction for tenant: ${tenantAddress} by signer: ${signer.address}, tx: ${tx.hash}`)
-
     } catch (error) {
       console.error('Error recording transaction:', error)
     }

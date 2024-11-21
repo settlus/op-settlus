@@ -1,16 +1,8 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import {
-  parseEventLogs,
-  getAddress,
-  parseEther,
-  keccak256,
-  toBytes,
-  zeroHash,
-  zeroAddress,
-} from 'viem'
-import {nonMintableFixture} from "./utils";
+import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash, zeroAddress } from 'viem'
+import { nonMintableFixture } from './utils'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -107,7 +99,8 @@ describe('Tenant', function () {
   })
 
   it('should record UTXR with updated NFT owner after NFT is tranferred', async function () {
-    const { tenantManager, tenantOwner, nftOwner, newNftOwner, publicClient, nft } = await loadFixture(nonMintableFixture)
+    const { tenantManager, tenantOwner, nftOwner, newNftOwner, publicClient, nft } =
+      await loadFixture(nonMintableFixture)
 
     // Deploy a Tenant that uses the Mintable currency
     const mintableTx = await tenantManager.write.createTenantWithMintableContract(
