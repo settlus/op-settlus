@@ -20,7 +20,7 @@ jobs:
       ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
       NFT_OWNER: ${{ vars.NFT_OWNER }}
       PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-      
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,6 +41,12 @@ jobs:
       - name: Install Dependencies
         working-directory: ./contracts
         run: pnpm install
+
+      - name: Set Hardhat Variables
+        working-directory: ./contracts
+        run: |
+          npx hardhat vars set ENDPOINT_URL "${{ vars.ENDPOINT_URL }}"
+          npx hardhat vars set PRIVATE_KEY "${{ secrets.PRIVATE_KEY }}"
 
       - name: Run Tests
         working-directory: ./contracts
