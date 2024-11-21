@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
-import { parseEventLogs, getAddress, keccak256, encodePacked, encodeFunctionData } from 'viem'
+import { parseEventLogs, getAddress, keccak256, encodePacked } from 'viem'
+import {mintableFixture} from "./utils";
 
 describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
@@ -13,66 +13,8 @@ describe('TenantManager Test', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
 
-  async function deployTenantManagerProxyFixture() {
-    const [deployer, tenantOwner, erc20Owner, nftOwner, newNftOwner] = await hre.viem.getWalletClients()
-    const publicClient = await hre.viem.getPublicClient()
-
-    const tenantManagerImplementation = await hre.viem.deployContract('TenantManager', [], {
-      client: { wallet: deployer },
-    })
-
-    const initData = encodeFunctionData({
-      abi: TenantManagerArtifact.abi,
-      functionName: 'initialize',
-      args: [deployer.account.address],
-    })
-
-    const tenantManagerProxy = await hre.viem.deployContract(
-      'TenantManagerProxy',
-      [tenantManagerImplementation.address, initData],
-      {
-        client: { wallet: deployer },
-      }
-    )
-
-    // Interact with the TenantManager through the proxy
-    const tenantManager = await hre.viem.getContractAt('TenantManager', tenantManagerProxy.address)
-
-    // Deploy ERC20 and Mintable contracts
-    const erc20 = await hre.viem.deployContract('BasicERC20', [tenantOwner.account.address, 'Test ERC20', 'TST'], {
-      client: { wallet: tenantOwner },
-    })
-    const mintable = await hre.viem.deployContract(
-      'ERC20NonTransferable',
-      [tenantOwner.account.address, 'Test Mintable', 'Mintable'],
-      { client: { wallet: tenantOwner } }
-    )
-
-    // Deploy NFT contract and mint to nftOwner
-    const nft = await hre.viem.deployContract('BasicERC721', [nftOwner.account.address], {
-      client: { wallet: nftOwner },
-    })
-    await nft.write.safeMint([nftOwner.account.address], { account: nftOwner.account })
-
-    expect(await nft.read.balanceOf([nftOwner.account.address])).to.equal(BigInt(1))
-    expect(await nft.read.ownerOf([BigInt(0)])).to.equal(getAddress(nftOwner.account.address))
-
-    return {
-      deployer,
-      tenantManager,
-      tenantOwner,
-      nftOwner,
-      newNftOwner,
-      publicClient,
-      erc20,
-      mintable,
-      nft,
-      erc20Owner,
-    }
-  }
-
   it('should create a Tenant contract with correct parameters and emit event via proxy', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 
     const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
@@ -89,7 +31,7 @@ describe('TenantManager Test', function () {
   })
 
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 
     // Tenant with ETH currency
     const ethTx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
@@ -121,7 +63,7 @@ describe('TenantManager Test', function () {
   })
 
   it('should store and retrieve tenant addresses via proxy', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 
     const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
@@ -144,7 +86,7 @@ describe('TenantManager Test', function () {
   })
 
   it('should handle settleAll with partial success via proxy', async function () {
-    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(deployTenantManagerProxyFixture)
+    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(mintableFixture)
     const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
 
     const initialTreasuryBalance = BigInt(1000)
