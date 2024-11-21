@@ -1,9 +1,13 @@
 name: Contract Test
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contract-test.yaml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contract-test.yaml"
 
 permissions:
   contents: read
