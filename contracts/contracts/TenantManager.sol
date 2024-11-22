@@ -10,6 +10,7 @@ import './Tenant.sol';
 
 interface ITenant {
   function settle() external returns (uint256);
+  function name() external view returns (string memory);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
@@ -36,6 +37,11 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   error DuplicateTenantName();
   error NotScheduledTenant();
+
+  modifier onlyTenant {
+    require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
+    _;
+  }
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
@@ -101,7 +107,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
   }
 
-  function addSettlementSchedule(uint256 settleTime) external {
+  function addSettlementSchedule(uint256 settleTime) external onlyTenant() {
     if (settlementSchedule[msg.sender] == 0) {
       settleRequiredTenantAddresses.push(msg.sender);
     }
@@ -109,7 +115,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     emit AddSettlementSchedule(msg.sender, settleTime);
   }
 
-  function removeSettleRequiredTenant() external {
+  function removeSettleRequiredTenant() external onlyTenant() {
     delete settlementSchedule[msg.sender];
 
     for (uint256 i = 0; i < settleRequiredTenantAddresses.length; i++) {
