@@ -1,8 +1,8 @@
-import '../env'
 import fs from 'fs'
 import hre from 'hardhat'
 import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
 import { encodeFunctionData } from 'viem'
+import { vars } from "hardhat/config";
 
 // Issue with viem https://github.com/NomicFoundation/hardhat/issues/5187
 const deployFactory = async (contractName: string, ...args: string[]) => {
@@ -23,7 +23,7 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners()
   const nftContractOwner = deployer
   const nftContractName = 'BasicERC721'
-  const nftOwner = process.env.NFT_OWNER || ''
+  const nftOwner = vars.get('NFT_OWNER')
   const tenantManagerName = 'TenantManager'
 
   // Deploy the NFT contract

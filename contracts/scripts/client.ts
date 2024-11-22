@@ -1,8 +1,8 @@
-import '../env'
 import { createWalletClient, http, defineChain } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { vars } from "hardhat/config";
 
-const pvKey = (process.env.PRIVATE_KEY! as `0x${string}`) || `0x`
+const pvKey = (vars.get('PRIVATE_KEY') as `0x${string}`) || `0x`
 
 export const settlusChain = defineChain({
   id: 42069,
