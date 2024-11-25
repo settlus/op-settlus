@@ -38,7 +38,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   error DuplicateTenantName();
   error NotScheduledTenant();
 
-  modifier onlyTenant {
+  modifier onlyTenant() {
     require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
     _;
   }
@@ -107,7 +107,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
   }
 
-  function addSettlementSchedule(uint256 settleTime) external onlyTenant() {
+  function addSettlementSchedule(uint256 settleTime) external onlyTenant {
     if (settlementSchedule[msg.sender] == 0) {
       settleRequiredTenantAddresses.push(msg.sender);
     }
@@ -115,7 +115,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     emit AddSettlementSchedule(msg.sender, settleTime);
   }
 
-  function removeSettleRequiredTenant() external onlyTenant() {
+  function removeSettleRequiredTenant() external onlyTenant {
     delete settlementSchedule[msg.sender];
 
     for (uint256 i = 0; i < settleRequiredTenantAddresses.length; i++) {

@@ -1,15 +1,16 @@
 import '../env'
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
-import { zeroAddress, parseEther } from 'viem'
 
 // This script is for testing purpose only, especially for single-tenant setup on devnet
 async function main() {
   const [signer] = await hre.ethers.getSigners()
   const tenantManager = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
 
-  // Tenantceyvf
-  // const tenantName = 'Tenantceyvf'
+  // Tenant1w5xw sepolia
+  // Tenantrpsi3, Tenantlrq6a sep2
+  //
+  // const tenantName = 'Tenantlrq6a'
   // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed

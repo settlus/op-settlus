@@ -47,6 +47,11 @@ const config: HardhatUserConfig = {
       url: 'http://3.38.163.215:8545',
       accounts: getPrivateKey(),
       chainId: 5372
+    },
+    conduit: {
+      url: 'https://rpc-settlus-testnet-nw9b4xdc7r.t.conduit.xyz',
+      accounts: getPrivateKey(),
+      chainId: 53722735
     }
   },
   solidity: {
