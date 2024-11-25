@@ -9,14 +9,14 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 interface ITenant {
-  function settle() external returns (uint256);
+  function settle(uint256 maxSettlementPertenant) external;
   function name() external view returns (string memory);
   function needSettlement() external view returns (bool);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
-  uint256 public maxBatchSize = 30;
+  uint256 public maxSettlementPerTenant;
   address[] public tenantAddresses;
 
   event TenantCreated(
@@ -43,6 +43,8 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
+    // initialize with 5
+    setMaxBatchSize(5);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -87,17 +89,12 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   }
 
   function settleAll() public onlyOwner {
-    uint256 count = 0;
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      if (count >= maxBatchSize) break;
-      if (!ITenant(tenantAddresses[i]).needSettlement()) continue;
-
-      try ITenant(targetTenants[i]).settle() returns (uint256 settledCount) {
-        count += settledCount;
-        emit TenantSettled(targetTenants[i]);
+      try ITenant(tenantAddresses[i]).settle(maxSettlementPerTenant) {
+        emit TenantSettled(tenantAddresses[i]);
       } catch {
-        emit SettleFailed(targetTenants[i]);
+        emit SettleFailed(tenantAddresses[i]);
       }
     }
   }
@@ -111,16 +108,16 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return tenantAddresses;
   }
 
-  function checkNeedSettlement() public view returns (bool memory) {
+  function checkNeedSettlement() public view returns (bool) {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-       if (ITenant(tenantAddresses[i]).needSettlement()) return true;
+      if (ITenant(tenantAddresses[i]).needSettlement()) return true;
     }
     return false;
   }
 
-  function setMaxBatchSize(uint256 _maxBatchSize) public onlyOwner {
-    maxBatchSize = _maxBatchSize;
+  function setMaxBatchSize(uint256 _maxSettlementPerTenant) public onlyOwner {
+    maxSettlementPerTenant = _maxSettlementPerTenant;
   }
 
   function getOwner() public view returns (address) {

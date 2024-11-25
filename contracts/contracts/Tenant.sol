@@ -15,8 +15,6 @@ interface IMintable {
 
 contract Tenant is AccessControl {
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
-  // 5 records for tenant per every block seems enough
-  uint256 public constant MAX_BATCH_SIZE = 5;
 
   enum CurrencyType {
     ETH,
@@ -177,13 +175,13 @@ contract Tenant is AccessControl {
     payoutPeriod = _payoutPeriod;
   }
 
-  function settle() public onlyManagerOrAdmin returns (uint256) {
-    if (nextToSettleIdx == utxrs.length) return 0;
+  function settle(uint256 batchSize) public onlyManagerOrAdmin {
+    if (nextToSettleIdx == utxrs.length) return;
     uint256 currentLength = utxrs.length;
     uint256 count = 0;
 
     for (uint256 i = nextToSettleIdx; i < currentLength; i++) {
-      if (count >= MAX_BATCH_SIZE) {
+      if (count >= batchSize) {
         break;
       }
 
@@ -210,8 +208,6 @@ contract Tenant is AccessControl {
       emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
     }
     nextToSettleIdx += count;
-
-    return count;
   }
 
   function needSettlement() public view returns (bool) {
