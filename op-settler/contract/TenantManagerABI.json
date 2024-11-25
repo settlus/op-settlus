@@ -94,25 +94,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "tenantAddress",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "settleTime",
-        "type": "uint256"
-      }
-    ],
-    "name": "AddSettlementSchedule",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "uint64",
         "name": "version",
         "type": "uint64"
@@ -138,19 +119,6 @@
       }
     ],
     "name": "OwnershipTransferred",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "tenantAddress",
-        "type": "address"
-      }
-    ],
-    "name": "RemoveSettleRequiredTenant",
     "type": "event"
   },
   {
@@ -256,16 +224,16 @@
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "checkNeedSettlement",
+    "outputs": [
       {
-        "internalType": "uint256",
-        "name": "settleTime",
-        "type": "uint256"
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
-    "name": "addSettlementSchedule",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -355,19 +323,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getSettleRequiredTenants",
-    "outputs": [
-      {
-        "internalType": "address[]",
-        "name": "",
-        "type": "address[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "string",
@@ -400,24 +355,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getTenantSettlementSchedules",
-    "outputs": [
-      {
-        "internalType": "address[]",
-        "name": "addresses",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "schedules",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -428,6 +365,19 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxSettlementPerTenant",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -458,13 +408,6 @@
   },
   {
     "inputs": [],
-    "name": "removeSettleRequiredTenant",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -473,57 +416,21 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "targetTenants",
-        "type": "address[]"
-      },
-      {
         "internalType": "uint256",
-        "name": "maxBatchSize",
+        "name": "_maxSettlementPerTenant",
         "type": "uint256"
       }
     ],
-    "name": "settleAll",
+    "name": "setMaxBatchSize",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "settleRequiredTenantAddresses",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "settlementSchedule",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
+    "inputs": [],
+    "name": "settleAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

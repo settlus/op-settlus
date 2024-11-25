@@ -7,10 +7,9 @@ async function main() {
   const [signer] = await hre.ethers.getSigners()
   const tenantManager = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
 
-  // Tenant1w5xw sepolia
-  // Tenantrpsi3, Tenantlrq6a sep2
+  // Tenant8yxfy sepolia
   //
-  // const tenantName = 'Tenantlrq6a'
+  // const tenantName = 'Tenant8yxfy'
   // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed
