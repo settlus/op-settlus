@@ -9,7 +9,7 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 interface ITenant {
-  function settle(uint256 maxSettlementPertenant) external;
+  function settle(uint256 maxSettlementPerTenant) external;
   function name() external view returns (string memory);
   function needSettlement() external view returns (bool);
 }
