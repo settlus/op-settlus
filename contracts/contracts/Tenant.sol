@@ -13,12 +13,6 @@ interface IMintable {
   function mint(address to, uint256 amount) external;
 }
 
-interface ITenantManager {
-  function addSettlementSchedule(uint256 timestamp) external;
-  function removeSettleRequiredTenant() external;
-  function settlementSchedule(address tenantAddress) external view returns (uint256);
-}
-
 contract Tenant is AccessControl {
   bytes32 public constant RECORDER_ROLE = keccak256('RECORDER_ROLE');
   // 5 records for tenant per every block seems enough
@@ -134,10 +128,6 @@ contract Tenant is AccessControl {
 
     utxrs.push(newUTXR);
     reqIDToIdx[reqID] = utxrs.length - 1;
-
-    if (ITenantManager(manager).settlementSchedule(address(this)) == 0) {
-      ITenantManager(manager).addSettlementSchedule(payoutTimestamp);
-    }
   }
 
   // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
@@ -160,10 +150,6 @@ contract Tenant is AccessControl {
 
     utxrs.push(newUTXR);
     reqIDToIdx[reqID] = utxrs.length - 1;
-
-    if (ITenantManager(manager).settlementSchedule(address(this)) == 0) {
-      ITenantManager(manager).addSettlementSchedule(payoutTimestamp);
-    }
   }
 
   function getUtxrsLength() public view returns (uint256) {
@@ -225,13 +211,12 @@ contract Tenant is AccessControl {
     }
     nextToSettleIdx += count;
 
-    if (nextToSettleIdx < utxrs.length) {
-      ITenantManager(manager).addSettlementSchedule(utxrs[nextToSettleIdx].timestamp);
-    } else {
-      ITenantManager(manager).removeSettleRequiredTenant();
-    }
-
     return count;
+  }
+
+  function needSettlement() public view returns (bool) {
+    if (nextToSettleIdx == utxrs.length) return false;
+    return block.timestamp >= utxrs[nextToSettleIdx].timestamp;
   }
 
   function getRemainingUTXRCount() public view returns (uint256) {
