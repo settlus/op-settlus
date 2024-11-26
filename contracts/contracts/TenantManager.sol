@@ -9,14 +9,14 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 interface ITenant {
-  function settle(uint256 maxSettlementPerTenant) external;
+  function settle(uint256 maxPerTenant) external;
   function name() external view returns (string memory);
   function needSettlement() external view returns (bool);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+  uint256 public MAX_PER_TENANT;
   mapping(bytes32 => address) public tenants;
-  uint256 public maxSettlementPerTenant;
   address[] public tenantAddresses;
 
   event TenantCreated(
@@ -43,8 +43,8 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
-    // initialize with 5
-    setMaxBatchSize(5);
+    // initialize with 10
+    setMaxBatchSize(10);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -91,7 +91,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      try ITenant(tenantAddresses[i]).settle(maxSettlementPerTenant) {
+      try ITenant(tenantAddresses[i]).settle(MAX_PER_TENANT) {
         emit TenantSettled(tenantAddresses[i]);
       } catch {
         emit SettleFailed(tenantAddresses[i]);
@@ -116,8 +116,8 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return false;
   }
 
-  function setMaxBatchSize(uint256 _maxSettlementPerTenant) public onlyOwner {
-    maxSettlementPerTenant = _maxSettlementPerTenant;
+  function setMaxPerTenant(uint256 _maxPerTenant) public onlyOwner {
+    MAX_PER_TENANT = _maxPerTenant;
   }
 
   function getOwner() public view returns (address) {
