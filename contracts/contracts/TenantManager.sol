@@ -16,7 +16,7 @@ interface ITenant {
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
-  uint256 public maxSettlementPerTenant;
+  uint256 public MAX_PER_TENANT;
   address[] public tenantAddresses;
 
   event TenantCreated(
@@ -43,8 +43,8 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
-    // initialize with 5
-    setMaxBatchSize(5);
+    // initialize with 10
+    setMaxBatchSize(10);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

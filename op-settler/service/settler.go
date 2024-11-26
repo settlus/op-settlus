@@ -20,11 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-type TenantSchedule struct {
-	Address  common.Address
-	Schedule *big.Int
-}
-
 func Start(ctx context.Context) error {
 	client, err := ethclient.Dial(GetEthEndpoint())
 	if err != nil {
