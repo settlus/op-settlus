@@ -8,8 +8,7 @@ describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameMintable = 'Tenant Mintable'
-  const maxBatchSize = BigInt(200)
-  const tenantMaxBatchSize = BigInt(5)
+  const maxSettlementPerTenant = BigInt(5)
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -148,9 +147,10 @@ describe('TenantManager Test', function () {
     })
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
 
     // Call settleAll to settle balances across tenants, no error or revert expeceted
-    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+    await tenantManager.write.settleAll({
       account: deployer.account,
     })
 
@@ -165,8 +165,8 @@ describe('TenantManager Test', function () {
     expect(recipientBalanceAtTenant2).to.equal(BigInt(0))
   })
 
-  it('should handle settleAll via proxy (Mintables)', async function () {
-    const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(mintableFixture)
+  it('should checkNeedSettlement correctly', async function () {
+    const { tenantManager, deployer, publicClient, nft } = await loadFixture(mintableFixture)
     const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
 
     // Create tenants using the Mintables
@@ -195,9 +195,6 @@ describe('TenantManager Test', function () {
     const tenant1 = await hre.viem.getContractAt('Tenant', tenant1Address!)
     const tenant2 = await hre.viem.getContractAt('Tenant', tenant2Address!)
 
-    const tenant1ccy = await hre.viem.getContractAt('ERC20NonTransferable', await tenant1.read.ccyAddr())
-    const tenant2ccy = await hre.viem.getContractAt('ERC20NonTransferable', await tenant2.read.ccyAddr())
-
     const reqID1 = 'reqId1'
     const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500)
@@ -210,29 +207,25 @@ describe('TenantManager Test', function () {
       account: tenantOwner2.account,
     })
 
-    const scheduledTenantList = await tenantManager.read.getSettleRequiredTenants()
-    expect(scheduledTenantList).to.include(tenant1Address!)
-    expect(scheduledTenantList).to.include(tenant2Address!)
+    var check: boolean
+    check = await tenantManager.read.checkNeedSettlement()
+    expect(check).to.equal(false)
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
 
-    // // Call settleAll to settle balances across tenants, no error or revert expeceted
-    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+    check = await tenantManager.read.checkNeedSettlement()
+    expect(check).to.equal(true)
+
+    await tenantManager.write.settleAll({
       account: deployer.account,
     })
 
-    const scheduledTenantListAfter = await tenantManager.read.getSettleRequiredTenants()
-
-    const recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
-    const recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
-
-    expect(recipientBalanceAtTenant1).to.equal(amountToSettle)
-    expect(recipientBalanceAtTenant2).to.equal(amountToSettle)
-    expect(scheduledTenantListAfter).not.to.include(tenant1Address!)
-    expect(scheduledTenantListAfter).not.to.include(tenant2Address!)
+    check = await tenantManager.read.checkNeedSettlement()
+    expect(check).to.equal(false)
   })
 
-  it('should settle only 5 records(MAX_BATCH_SIZE) in each tenant per settleAll', async function () {
+  it('should settle only 5 records(maxSettlementPerTenant) per each tenant by settleAll', async function () {
     const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(mintableFixture)
     const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
 
@@ -281,8 +274,9 @@ describe('TenantManager Test', function () {
     }
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
 
-    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+    await tenantManager.write.settleAll({
       account: deployer.account,
     })
 
@@ -297,17 +291,16 @@ describe('TenantManager Test', function () {
     recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
     recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
 
-    // should be 5, because Tenant MAX_BATCH_SIZE constant set to 5
-    expect(recipientBalanceAtTenant1).to.equal(tenantMaxBatchSize)
-    expect(recipientBalanceAtTenant2).to.equal(tenantMaxBatchSize)
-    expect(t1NextSettleIdx).to.equal(tenantMaxBatchSize)
-    expect(t2NextSettleIdx).to.equal(tenantMaxBatchSize)
+    expect(recipientBalanceAtTenant1).to.equal(maxSettlementPerTenant)
+    expect(recipientBalanceAtTenant2).to.equal(maxSettlementPerTenant)
+    expect(t1NextSettleIdx).to.equal(maxSettlementPerTenant)
+    expect(t2NextSettleIdx).to.equal(maxSettlementPerTenant)
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine')
 
     // call settleAll again to settle more
-    await tenantManager.write.settleAll([[tenant1Address!, tenant2Address!], maxBatchSize], {
+    await tenantManager.write.settleAll({
       account: deployer.account,
     })
 
@@ -317,10 +310,9 @@ describe('TenantManager Test', function () {
     recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
     recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
 
-    // should be 10
-    expect(recipientBalanceAtTenant1).to.equal(tenantMaxBatchSize * BigInt(2))
-    expect(recipientBalanceAtTenant2).to.equal(tenantMaxBatchSize * BigInt(2))
-    expect(t1NextSettleIdx).to.equal(tenantMaxBatchSize * BigInt(2))
-    expect(t2NextSettleIdx).to.equal(tenantMaxBatchSize * BigInt(2))
+    expect(recipientBalanceAtTenant1).to.equal(maxSettlementPerTenant * BigInt(2))
+    expect(recipientBalanceAtTenant2).to.equal(maxSettlementPerTenant * BigInt(2))
+    expect(t1NextSettleIdx).to.equal(maxSettlementPerTenant * BigInt(2))
+    expect(t2NextSettleIdx).to.equal(maxSettlementPerTenant * BigInt(2))
   })
 })

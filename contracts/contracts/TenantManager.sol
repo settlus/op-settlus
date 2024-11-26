@@ -9,16 +9,15 @@ import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
 interface ITenant {
-  function settle() external returns (uint256);
+  function settle(uint256 maxSettlementPerTenant) external;
   function name() external view returns (string memory);
+  function needSettlement() external view returns (bool);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
+  uint256 public maxSettlementPerTenant;
   address[] public tenantAddresses;
-
-  mapping(address => uint256) public settlementSchedule;
-  address[] public settleRequiredTenantAddresses;
 
   event TenantCreated(
     address tenantAddress,
@@ -32,13 +31,11 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   event TenantSettled(address tenantAddress);
 
   event SettleFailed(address tenantAddress);
-  event AddSettlementSchedule(address tenantAddress, uint256 settleTime);
-  event RemoveSettleRequiredTenant(address tenantAddress);
 
   error DuplicateTenantName();
   error NotScheduledTenant();
 
-  modifier onlyTenant {
+  modifier onlyTenant() {
     require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
     _;
   }
@@ -46,6 +43,8 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
+    // initialize with 5
+    setMaxBatchSize(5);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -89,44 +88,15 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return address(newTenant);
   }
 
-  function settleAll(address[] memory targetTenants, uint256 maxBatchSize) public onlyOwner {
-    uint256 tenantNumber = targetTenants.length;
-    uint256 count = 0;
+  function settleAll() public onlyOwner {
+    uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      if (settlementSchedule[targetTenants[i]] == 0) revert NotScheduledTenant();
-      if (count >= maxBatchSize) {
-        break;
-      }
-
-      try ITenant(targetTenants[i]).settle() returns (uint256 settledCount) {
-        count += settledCount;
-        emit TenantSettled(targetTenants[i]);
+      try ITenant(tenantAddresses[i]).settle(maxSettlementPerTenant) {
+        emit TenantSettled(tenantAddresses[i]);
       } catch {
-        emit SettleFailed(targetTenants[i]);
+        emit SettleFailed(tenantAddresses[i]);
       }
     }
-  }
-
-  function addSettlementSchedule(uint256 settleTime) external onlyTenant() {
-    if (settlementSchedule[msg.sender] == 0) {
-      settleRequiredTenantAddresses.push(msg.sender);
-    }
-    settlementSchedule[msg.sender] = settleTime;
-    emit AddSettlementSchedule(msg.sender, settleTime);
-  }
-
-  function removeSettleRequiredTenant() external onlyTenant() {
-    delete settlementSchedule[msg.sender];
-
-    for (uint256 i = 0; i < settleRequiredTenantAddresses.length; i++) {
-      if (settleRequiredTenantAddresses[i] == msg.sender) {
-        settleRequiredTenantAddresses[i] = settleRequiredTenantAddresses[settleRequiredTenantAddresses.length - 1];
-        settleRequiredTenantAddresses.pop();
-        break;
-      }
-    }
-
-    emit RemoveSettleRequiredTenant(msg.sender);
   }
 
   function getTenantAddress(string memory name) public view returns (address) {
@@ -138,19 +108,16 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return tenantAddresses;
   }
 
-  function getSettleRequiredTenants() public view returns (address[] memory) {
-    return settleRequiredTenantAddresses;
+  function checkNeedSettlement() public view returns (bool) {
+    uint256 tenantNumber = tenantAddresses.length;
+    for (uint256 i = 0; i < tenantNumber; i++) {
+      if (ITenant(tenantAddresses[i]).needSettlement()) return true;
+    }
+    return false;
   }
 
-  function getTenantSettlementSchedules() public view returns (address[] memory addresses, uint256[] memory schedules) {
-    addresses = settleRequiredTenantAddresses;
-    schedules = new uint256[](settleRequiredTenantAddresses.length);
-
-    for (uint i = 0; i < settleRequiredTenantAddresses.length; i++) {
-      schedules[i] = settlementSchedule[settleRequiredTenantAddresses[i]];
-    }
-
-    return (addresses, schedules);
+  function setMaxBatchSize(uint256 _maxSettlementPerTenant) public onlyOwner {
+    maxSettlementPerTenant = _maxSettlementPerTenant;
   }
 
   function getOwner() public view returns (address) {

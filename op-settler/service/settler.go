@@ -87,27 +87,18 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTi
 	proxyAddress := common.HexToAddress(GetProxyAddress())
 	tenantManagerABI := contract.LoadABI(contract.TenantManager)
 
-	targetTenants, err := getSettlementSchedule(ctx, client, tenantManagerABI, proxyAddress)
+	needSettlement, err := checkNeedSettlement(ctx, client, tenantManagerABI, proxyAddress)
 	if err != nil {
 		log.Errorf("Failed to get settle required tenants: %v", err)
 		return err
 	}
 
-	readyToSettleTenants := filterPassedScheduleTenants(targetTenants, new(big.Int).SetUint64(currentBlockTime))
-	if len(readyToSettleTenants) == 0 {
+	if !needSettlement {
 		log.Infof("No tenants to settle")
 		return nil
 	}
 
-	maxBatchSizeStr := GetMaxBatchSize()
-	maxBatchSize := new(big.Int)
-	maxBatchSize, ok := maxBatchSize.SetString(maxBatchSizeStr, 10)
-	if !ok {
-		log.Errorf("Failed to convert maxBatchSize string to big.Int: %s", maxBatchSizeStr)
-		return err
-	}
-
-	inputData, err := tenantManagerABI.Pack("settleAll", readyToSettleTenants, maxBatchSize)
+	inputData, err := tenantManagerABI.Pack("settleAll")
 	if err != nil {
 		log.Errorf("Failed to pack input data: %v", err)
 		return err
@@ -207,11 +198,11 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTi
 	return nil
 }
 
-func getSettlementSchedule(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) ([]TenantSchedule, error) {
-	getSettlementScheduleData, err := tenantManagerABI.Pack("getTenantSettlementSchedules")
+func checkNeedSettlement(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) (bool, error) {
+	getSettlementScheduleData, err := tenantManagerABI.Pack("checkNeedSettlement")
 	if err != nil {
-		log.Errorf("Failed to pack data for getTenantSettlementSchedules: %v", err)
-		return nil, err
+		log.Errorf("Failed to pack data for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
 	msg := ethereum.CallMsg{
@@ -221,44 +212,17 @@ func getSettlementSchedule(ctx context.Context, client *ethclient.Client, tenant
 
 	result, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Errorf("Failed to call contract for getTenantSettlementSchedules: %v", err)
-		return nil, err
+		log.Errorf("Failed to call contract for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
-	var addresses []common.Address
-	var schedules []*big.Int
-
-	err = tenantManagerABI.UnpackIntoInterface(&struct {
-		Addresses *[]common.Address
-		Schedules *[]*big.Int
-	}{
-		Addresses: &addresses,
-		Schedules: &schedules,
-	}, "getTenantSettlementSchedules", result)
+	// Unpack the boolean result from the call
+	var needSettlement bool
+	err = tenantManagerABI.UnpackIntoInterface(&needSettlement, "checkNeedSettlement", result)
 	if err != nil {
-		return nil, err
+		log.Errorf("Failed to unpack result for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
-	tenantSchedules := make([]TenantSchedule, len(addresses))
-
-	for i := range addresses {
-		tenantSchedules[i] = TenantSchedule{
-			Address:  addresses[i],
-			Schedule: schedules[i],
-		}
-	}
-
-	return tenantSchedules, nil
-}
-
-func filterPassedScheduleTenants(tenantSchedules []TenantSchedule, currentBlockTime *big.Int) []common.Address {
-	var passedScheduleTenants []common.Address
-
-	for _, tenant := range tenantSchedules {
-		if tenant.Schedule.Cmp(currentBlockTime) <= 0 {
-			passedScheduleTenants = append(passedScheduleTenants, tenant.Address)
-		}
-	}
-
-	return passedScheduleTenants
+	return needSettlement, nil
 }
