@@ -44,7 +44,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
     // initialize with 10
-    setMaxBatchSize(10);
+    setMaxPerTenant(10);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
