@@ -1,32 +1,28 @@
 import '../env'
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
-import { zeroAddress, parseEther } from 'viem'
 
 // This script is for testing purpose only, especially for single-tenant setup on devnet
 async function main() {
   const [signer] = await hre.ethers.getSigners()
   const tenantManager = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
 
-  // Tenant2stmu
-  const tenantName = 'Tenant2stmu'
-  const tenantAddress = await tenantManager.getTenantAddress(tenantName)
+  // Tenant8yxfy sepolia
+  //
+  // const tenantName = 'Tenant8yxfy'
+  // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed
-  // const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
+  const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
 
-  // const tx = await tenantManager.connect(signer).createTenantWithMintableContract(tenantName, 2, BigInt(15), "Mintable", "MTB")
-  // await tx.wait()
-  // const tenantAddress = await tenantManager.getTenantAddress(tenantName, { gasLimit: 100000000 })
-  // console.log(`Created tenant: ${tenantName} by signer: ${signer.address}, tx: ${tx.hash}`)
-  // const sendTx = await signer.sendTransaction({
-  //   to: tenantAddress,
-  //   value: parseEther('1', 'gwei'),
-  // })
-  // await sendTx.wait()
-  // console.log(`Sent 1 gwei to tenant: ${tenantAddress} by signer: ${signer.address}, hash: ${sendTx.hash}`)
+  const tx = await tenantManager
+    .connect(signer)
+    .createTenantWithMintableContract(tenantName, 2, BigInt(15), 'Mintable', 'MTB')
+  await tx.wait()
+  const tenantAddress = await tenantManager.getTenantAddress(tenantName, { gasLimit: 100000000 })
+  console.log(`Created tenant: ${tenantName} by signer: ${signer.address}, tx: ${tx.hash}`)
 
-  const interval = 10000
+  const interval = 5000
   setInterval(async () => {
     try {
       const tenant = await hre.ethers.getContractAt('Tenant', tenantAddress)

@@ -44,7 +44,8 @@ func Start(ctx context.Context) error {
 			return err
 		case header := <-headerChannel:
 			log.Printf("New block: %v", header.Number.String())
-			err := callSettleAll(ctx, client)
+			blockTime := header.Time
+			err := callSettleAll(ctx, client, blockTime)
 			if err != nil {
 				log.Errorf("Failed to call settleAll: %v", err)
 			}
@@ -52,7 +53,7 @@ func Start(ctx context.Context) error {
 	}
 }
 
-func callSettleAll(ctx context.Context, client *ethclient.Client) error {
+func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTime uint64) error {
 	privateKey, err := crypto.HexToECDSA(GetPrivateKey())
 	if err != nil {
 		log.Errorf("Failed to load private key: %v", err)
@@ -81,10 +82,15 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	proxyAddress := common.HexToAddress(GetProxyAddress())
 	tenantManagerABI := contract.LoadABI(contract.TenantManager)
 
-	err = logTenantStates(ctx, client, tenantManagerABI, proxyAddress)
+	needSettlement, err := checkNeedSettlement(ctx, client, tenantManagerABI, proxyAddress)
 	if err != nil {
-		log.Errorf("Failed to log tenant states: %v", err)
+		log.Errorf("Failed to get settle required tenants: %v", err)
 		return err
+	}
+
+	if !needSettlement {
+		log.Infof("No tenants to settle")
+		return nil
 	}
 
 	inputData, err := tenantManagerABI.Pack("settleAll")
@@ -187,80 +193,31 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	return nil
 }
 
-func logTenantStates(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) error {
-	getTenantAddressesData, err := tenantManagerABI.Pack("getTenantAddresses")
+func checkNeedSettlement(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) (bool, error) {
+	getSettlementScheduleData, err := tenantManagerABI.Pack("checkNeedSettlement")
 	if err != nil {
-		log.Errorf("Failed to pack data for getTenantAddresses: %v", err)
-		return err
+		log.Errorf("Failed to pack data for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
 	msg := ethereum.CallMsg{
 		To:   &contractAddress,
-		Data: getTenantAddressesData,
+		Data: getSettlementScheduleData,
 	}
 
 	result, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
-		log.Errorf("Failed to call contract for getTenantAddresses: %v", err)
-		return err
+		log.Errorf("Failed to call contract for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
-	var tenantAddresses []common.Address
-	err = tenantManagerABI.UnpackIntoInterface(&tenantAddresses, "getTenantAddresses", result)
+	// Unpack the boolean result from the call
+	var needSettlement bool
+	err = tenantManagerABI.UnpackIntoInterface(&needSettlement, "checkNeedSettlement", result)
 	if err != nil {
-		log.Errorf("Failed to unpack getTenantAddresses result: %v", err)
-		return err
+		log.Errorf("Failed to unpack result for checkNeedSettlement: %v", err)
+		return false, err
 	}
 
-	for _, tenantAddress := range tenantAddresses {
-		tenantABI := contract.LoadABI(contract.Tenant)
-		lastSettledIdxData, err := tenantABI.Pack("lastSettledIdx")
-		if err != nil {
-			log.Errorf("Failed to pack data for lastSettledIdx: %v", err)
-			return err
-		}
-
-		tenantMsg := ethereum.CallMsg{
-			To:   &tenantAddress,
-			Data: lastSettledIdxData,
-		}
-
-		tenantResult, err := client.CallContract(ctx, tenantMsg, nil)
-		if err != nil {
-			log.Errorf("Failed to call contract for lastSettledIdx: %v", err)
-			return err
-		}
-
-		lastSettledIdx := new(big.Int)
-		err = tenantABI.UnpackIntoInterface(&lastSettledIdx, "lastSettledIdx", tenantResult)
-		if err != nil {
-			log.Errorf("Failed to unpack lastSettledIdx result: %v", err)
-			return err
-		}
-
-		utxrLength := 0
-		for {
-			utxrIndexData, err := tenantABI.Pack("utxrs", big.NewInt(int64(utxrLength)))
-			if err != nil {
-				log.Errorf("Failed to pack data for utxrs: %v", err)
-				return err
-			}
-
-			tenantMsg = ethereum.CallMsg{
-				To:   &tenantAddress,
-				Data: utxrIndexData,
-			}
-
-			_, err = client.CallContract(ctx, tenantMsg, nil)
-			if err != nil {
-				break
-			}
-
-			utxrLength++
-		}
-
-		log.Debugf("Tenant: %s, UTXR length: %d, LastSettledIdx: %d", tenantAddress.Hex(), utxrLength, lastSettledIdx.Uint64())
-	}
-
-	return nil
+	return needSettlement, nil
 }

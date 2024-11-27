@@ -11,6 +11,7 @@ import './Tenant.sol';
 contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
+  uint256 public maxSettlementPerTenant = 5;
   address public newVar;
 
   event TenantCreated(
@@ -77,7 +78,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
       Tenant tenant = Tenant(payable(tenantAddresses[i]));
-      try tenant.settle() {} catch {
+      try tenant.settle(maxSettlementPerTenant) {} catch {
         emit SettleFailed(tenantAddresses[i]);
       }
     }

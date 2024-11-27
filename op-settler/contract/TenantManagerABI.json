@@ -11,6 +11,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "DuplicateTenantName",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -39,6 +44,11 @@
   {
     "inputs": [],
     "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotScheduledTenant",
     "type": "error"
   },
   {
@@ -113,12 +123,6 @@
   },
   {
     "anonymous": false,
-    "inputs": [],
-    "name": "SettleAll",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
     "inputs": [
       {
         "indexed": false,
@@ -128,6 +132,19 @@
       }
     ],
     "name": "SettleFailed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "TenantAddressesLength",
     "type": "event"
   },
   {
@@ -171,6 +188,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "tenantAddress",
+        "type": "address"
+      }
+    ],
+    "name": "TenantSettled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "implementation",
@@ -188,6 +218,19 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "checkNeedSettlement",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -326,6 +369,19 @@
   },
   {
     "inputs": [],
+    "name": "maxSettlementPerTenant",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "owner",
     "outputs": [
       {
@@ -353,6 +409,19 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_maxSettlementPerTenant",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxBatchSize",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

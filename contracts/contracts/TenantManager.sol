@@ -8,7 +8,14 @@ import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
+interface ITenant {
+  function settle(uint256 maxPerTenant) external;
+  function name() external view returns (string memory);
+  function needSettlement() external view returns (bool);
+}
+
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+  uint256 public MAX_PER_TENANT;
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
 
@@ -23,14 +30,21 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   event TenantAddressesLength(uint256 length);
   event TenantSettled(address tenantAddress);
 
-  event SettleAll();
   event SettleFailed(address tenantAddress);
 
-  event StepReached(string step);
+  error DuplicateTenantName();
+  error NotScheduledTenant();
+
+  modifier onlyTenant() {
+    require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
+    _;
+  }
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
+    // initialize with 10
+    setMaxPerTenant(10);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -42,7 +56,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
-    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
     tenants[nameHash] = address(newTenant);
@@ -60,7 +74,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     string memory tokenSymbol
   ) public returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
-    require(tenants[nameHash] == address(0), 'Tenant name already exists');
+    if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
 
     Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
@@ -77,8 +91,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      Tenant tenant = Tenant(payable(tenantAddresses[i]));
-      try tenant.settle() {
+      try ITenant(tenantAddresses[i]).settle(MAX_PER_TENANT) {
         emit TenantSettled(tenantAddresses[i]);
       } catch {
         emit SettleFailed(tenantAddresses[i]);
@@ -93,6 +106,18 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
+  }
+
+  function checkNeedSettlement() public view returns (bool) {
+    uint256 tenantNumber = tenantAddresses.length;
+    for (uint256 i = 0; i < tenantNumber; i++) {
+      if (ITenant(tenantAddresses[i]).needSettlement()) return true;
+    }
+    return false;
+  }
+
+  function setMaxPerTenant(uint256 _maxPerTenant) public onlyOwner {
+    MAX_PER_TENANT = _maxPerTenant;
   }
 
   function getOwner() public view returns (address) {
