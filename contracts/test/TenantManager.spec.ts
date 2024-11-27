@@ -8,7 +8,7 @@ describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameMintable = 'Tenant Mintable'
-  const maxSettlementPerTenant = BigInt(5)
+  const MAX_PER_TENANT = BigInt(10)
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -225,7 +225,7 @@ describe('TenantManager Test', function () {
     expect(check).to.equal(false)
   })
 
-  it('should settle only 5 records(maxSettlementPerTenant) per each tenant by settleAll', async function () {
+  it('should settle only 5 records(MAX_PER_TENANT) per each tenant by settleAll', async function () {
     const { tenantManager, deployer, publicClient, nftOwner, nft } = await loadFixture(mintableFixture)
     const [tenantOwner1, tenantOwner2] = await hre.viem.getWalletClients()
 
@@ -291,10 +291,10 @@ describe('TenantManager Test', function () {
     recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
     recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
 
-    expect(recipientBalanceAtTenant1).to.equal(maxSettlementPerTenant)
-    expect(recipientBalanceAtTenant2).to.equal(maxSettlementPerTenant)
-    expect(t1NextSettleIdx).to.equal(maxSettlementPerTenant)
-    expect(t2NextSettleIdx).to.equal(maxSettlementPerTenant)
+    expect(recipientBalanceAtTenant1).to.equal(MAX_PER_TENANT)
+    expect(recipientBalanceAtTenant2).to.equal(MAX_PER_TENANT)
+    expect(t1NextSettleIdx).to.equal(MAX_PER_TENANT)
+    expect(t2NextSettleIdx).to.equal(MAX_PER_TENANT)
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine')
@@ -310,9 +310,9 @@ describe('TenantManager Test', function () {
     recipientBalanceAtTenant1 = await tenant1ccy.read.balanceOf([nftOwner.account.address])
     recipientBalanceAtTenant2 = await tenant2ccy.read.balanceOf([nftOwner.account.address])
 
-    expect(recipientBalanceAtTenant1).to.equal(maxSettlementPerTenant * BigInt(2))
-    expect(recipientBalanceAtTenant2).to.equal(maxSettlementPerTenant * BigInt(2))
-    expect(t1NextSettleIdx).to.equal(maxSettlementPerTenant * BigInt(2))
-    expect(t2NextSettleIdx).to.equal(maxSettlementPerTenant * BigInt(2))
+    expect(recipientBalanceAtTenant1).to.equal(MAX_PER_TENANT * BigInt(2))
+    expect(recipientBalanceAtTenant2).to.equal(MAX_PER_TENANT * BigInt(2))
+    expect(t1NextSettleIdx).to.equal(MAX_PER_TENANT * BigInt(2))
+    expect(t2NextSettleIdx).to.equal(MAX_PER_TENANT * BigInt(2))
   })
 })
