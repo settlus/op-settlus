@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"math/big"
 
 	log "github.com/sirupsen/logrus"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -44,8 +46,7 @@ func Start(ctx context.Context) error {
 			return err
 		case header := <-headerChannel:
 			log.Printf("New block: %v", header.Number.String())
-			blockTime := header.Time
-			err := callSettleAll(ctx, client, blockTime)
+			err := callSettleAll(ctx, client)
 			if err != nil {
 				log.Errorf("Failed to call settleAll: %v", err)
 			}
@@ -53,26 +54,7 @@ func Start(ctx context.Context) error {
 	}
 }
 
-func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTime uint64) error {
-	privateKey, err := crypto.HexToECDSA(GetPrivateKey())
-	if err != nil {
-		log.Errorf("Failed to load private key: %v", err)
-		return err
-	}
-
-	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
-	nonce, err := client.PendingNonceAt(ctx, fromAddress)
-	if err != nil {
-		log.Errorf("Failed to get nonce: %v", err)
-		return err
-	}
-
-	gasPrice, err := client.SuggestGasPrice(ctx)
-	if err != nil {
-		log.Errorf("Failed to get gas price: %v", err)
-		return err
-	}
-
+func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 	chainID, err := client.NetworkID(ctx)
 	if err != nil {
 		log.Errorf("Failed to get chain ID: %v", err)
@@ -99,6 +81,21 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTi
 		return err
 	}
 
+	signer := NewSigner(ctx)
+
+	fromAddress := signer.PublicAddress()
+	nonce, err := client.PendingNonceAt(ctx, fromAddress)
+	if err != nil {
+		log.Errorf("Failed to get nonce: %v", err)
+		return err
+	}
+
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		log.Errorf("Failed to get gas price: %v", err)
+		return err
+	}
+
 	msg := ethereum.CallMsg{
 		From: fromAddress,
 		To:   &proxyAddress,
@@ -113,17 +110,39 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, currentBlockTi
 
 	tx := types.NewTx(&types.LegacyTx{
 		Nonce:    nonce,
-		To:       &proxyAddress,
+		To:       msg.To,
 		Value:    big.NewInt(0),
 		Gas:      gasLimit * 2,
 		GasPrice: gasPrice,
-		Data:     inputData,
+		Data:     msg.Data,
 	})
 
-	signer := types.LatestSignerForChainID(chainID)
-	signedTx, err := types.SignTx(tx, signer, privateKey)
+	latestSigner := types.LatestSignerForChainID(chainID)
+	txBytes := latestSigner.Hash(tx).Bytes()
+
+	signature, err := signer.Sign(txBytes)
 	if err != nil {
 		log.Errorf("Failed to sign transaction: %v", err)
+		return err
+	}
+
+	recovered, err := secp256k1.RecoverPubkey(txBytes, signature)
+	if err != nil {
+		log.Errorf("Failed to recover public key: %v", err)
+		return err 
+	}
+	
+	if len(recovered) == 65 {
+		recovered = recovered[1:]
+	}
+
+	pubKeyHash := crypto.Keccak256(recovered)
+	fmt.Printf("Recovered public key: %x\n", common.BytesToAddress(pubKeyHash[12:]))
+
+
+	signedTx, err := tx.WithSignature(latestSigner, signature)
+	if err != nil {
+		log.Errorf("Failed to return signed signature: %v", err)
 		return err
 	}
 
