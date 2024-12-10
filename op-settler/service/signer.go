@@ -5,10 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"math/big"
-	"bytes"
 	"encoding/hex"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"math/big"
 
 	log "github.com/sirupsen/logrus"
 
@@ -24,7 +23,6 @@ import (
 var (
 	secp256k1N, _  = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
 	secp256k1halfN = new(big.Int).Div(secp256k1N, big.NewInt(2))
-	chainID = uint64(53722735)
 )
 
 type Signer interface {
@@ -33,9 +31,9 @@ type Signer interface {
 }
 
 type KmsSigner struct {
-	ctx   context.Context
-	svc   *kms.Client
-	keyId string
+	ctx    context.Context
+	svc    *kms.Client
+	keyId  string
 	pubkey *ecdsa.PublicKey
 }
 
@@ -66,7 +64,6 @@ func NewKmsSigner(ctx context.Context) *KmsSigner {
 	svc := kms.NewFromConfig(awsCfg)
 	keyId := GetKmsKeyID()
 
-
 	input := &kms.GetPublicKeyInput{
 		KeyId: &keyId,
 	}
@@ -89,9 +86,9 @@ func NewKmsSigner(ctx context.Context) *KmsSigner {
 	}
 
 	return &KmsSigner{
-		ctx:   ctx,
-		svc:   svc,
-		keyId: keyId,
+		ctx:    ctx,
+		svc:    svc,
+		keyId:  keyId,
 		pubkey: pubkey,
 	}
 }
@@ -126,17 +123,17 @@ func (ks *KmsSigner) Sign(data []byte) ([]byte, error) {
 	rBytes := signature.R.Bytes()
 	sBytes := signature.S.Bytes()
 
-	rsSignature := append(adjustSignatureLength(rBytes), adjustSignatureLength(sBytes)...)
-	compSig := append(rsSignature, []byte{0}...)
+	rsSignature := append(rBytes, sBytes...)
+	sigBytes := append(rsSignature, []byte{0}...)
 
-	recoveredPublicKeyBytes, err := crypto.Ecrecover(data, compSig)
+	recoveredPublicKeyBytes, err := crypto.Ecrecover(data, sigBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	if hex.EncodeToString(recoveredPublicKeyBytes) != hex.EncodeToString(pubKeyBytes) {
-		compSig = append(rsSignature, []byte{1}...)
-		recoveredPublicKeyBytes, err = crypto.Ecrecover(data, compSig)
+		sigBytes = append(rsSignature, []byte{1}...)
+		recoveredPublicKeyBytes, err = crypto.Ecrecover(data, sigBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +143,7 @@ func (ks *KmsSigner) Sign(data []byte) ([]byte, error) {
 		}
 	}
 
-	return compSig, nil
+	return sigBytes, nil
 }
 
 func (ks *KmsSigner) PublicAddress() common.Address {
@@ -173,13 +170,4 @@ func (ls *LocalSigner) Sign(data []byte) ([]byte, error) {
 	}
 
 	return signature, nil
-}
-
-func adjustSignatureLength(buffer []byte) []byte {
-	buffer = bytes.TrimLeft(buffer, "\x00")
-	for len(buffer) < 32 {
-		zeroBuf := []byte{0}
-		buffer = append(zeroBuf, buffer...)
-	}
-	return buffer
 }

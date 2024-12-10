@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"math/big"
 
 	log "github.com/sirupsen/logrus"
@@ -17,8 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -117,7 +114,6 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		Data:     msg.Data,
 	})
 
-
 	latestSigner := types.LatestSignerForChainID(chainID)
 	txBytes := latestSigner.Hash(tx).Bytes()
 
@@ -126,22 +122,6 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		log.Errorf("Failed to sign transaction: %v", err)
 		return err
 	}
-
-	//
-	recovered, err := secp256k1.RecoverPubkey(txBytes, signature)
-	if err != nil {
-		log.Errorf("Failed to recover public key: %v", err)
-		return err 
-	}
-	
-	if len(recovered) == 65 {
-		recovered = recovered[1:]
-	}
-
-	pubKeyHash := crypto.Keccak256(recovered)
-	fmt.Printf("Recovered public key: %x\n", common.BytesToAddress(pubKeyHash[12:]))
-	//
-
 
 	signedTx, err := tx.WithSignature(latestSigner, signature)
 	if err != nil {

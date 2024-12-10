@@ -14,9 +14,6 @@ importers:
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.1.0
         version: 5.1.0(@openzeppelin/contracts@5.1.0)
-      key-encoder:
-        specifier: ^2.0.3
-        version: 2.0.3
     devDependencies:
       '@nomicfoundation/hardhat-chai-matchers':
         specifier: ^2.0.8
@@ -607,9 +604,6 @@ packages:
   '@types/concat-stream@1.6.1':
     resolution: {integrity: sha512-eHE4cQPoj6ngxBZMvVf6Hw7Mh4jMW4U9lpGmS5GBPB9RYxlFg+CHaVN7ErNY4W9XfLIEn20b4VDYaIrbq0q4uA==}
 
-  '@types/elliptic@6.4.18':
-    resolution: {integrity: sha512-UseG6H5vjRiNpQvrhy4VF/JXdA3V/Fp5amvveaL+fs28BZ6xIKJBPnUPRlEaZpysD9MbpfaLi8lbl7PGUAkpWw==}
-
   '@types/form-data@0.0.33':
     resolution: {integrity: sha512-8BSvG1kGm83cyJITQMZSulnl6QV8jqAGreJsc5tPu1Jq0vTSOiY/k24Wx82JRpWwZSqrala6sd5rWi6aNXvqcw==}
 
@@ -769,9 +763,6 @@ packages:
 
   asap@2.0.6:
     resolution: {integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==}
-
-  asn1.js@5.4.1:
-    resolution: {integrity: sha512-+I//4cYPccV8LdmBLiX8CYvf9Sp3vQsrqu2QNXRcrbiWvcx/UdlFiqUJJzxRQxgsZmvhXhn4cSKeSmoFjVdupA==}
 
   assertion-error@1.1.0:
     resolution: {integrity: sha512-jgsaNduz+ndvGyFt3uSuWqvy4lCnIJiovtouQN5JZHOKCS2QuhEdbcQHFhVksz2N2U9hXJo8odG7ETyWlEeuDw==}
@@ -1526,9 +1517,6 @@ packages:
   keccak@3.0.4:
     resolution: {integrity: sha512-3vKuW0jV8J3XNTzvfyicFR5qvxrSAGl7KIhvgOu5cmWwM7tZRj3fMbj/pfIf4be7aznbc+prBWGjywox/g2Y6Q==}
     engines: {node: '>=10.0.0'}
-
-  key-encoder@2.0.3:
-    resolution: {integrity: sha512-fgBtpAGIr/Fy5/+ZLQZIPPhsZEcbSlYu/Wu96tNDFNSjSACw5lEIOFeaVdQ/iwrb8oxjlWi6wmWdH76hV6GZjg==}
 
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
@@ -3115,10 +3103,6 @@ snapshots:
     dependencies:
       '@types/node': 22.9.0
 
-  '@types/elliptic@6.4.18':
-    dependencies:
-      '@types/bn.js': 5.1.6
-
   '@types/form-data@0.0.33':
     dependencies:
       '@types/node': 22.9.0
@@ -3247,13 +3231,6 @@ snapshots:
   array-uniq@1.0.3: {}
 
   asap@2.0.6: {}
-
-  asn1.js@5.4.1:
-    dependencies:
-      bn.js: 4.12.0
-      inherits: 2.0.4
-      minimalistic-assert: 1.0.1
-      safer-buffer: 2.1.2
 
   assertion-error@1.1.0: {}
 
@@ -4178,13 +4155,6 @@ snapshots:
       node-addon-api: 2.0.2
       node-gyp-build: 4.8.2
       readable-stream: 3.6.2
-
-  key-encoder@2.0.3:
-    dependencies:
-      '@types/elliptic': 6.4.18
-      asn1.js: 5.4.1
-      bn.js: 4.12.0
-      elliptic: 6.6.0
 
   kind-of@6.0.3: {}
 
