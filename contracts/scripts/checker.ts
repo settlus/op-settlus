@@ -1,7 +1,6 @@
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
 import { formatEther } from 'viem'
-import { vars } from "hardhat/config"
 
 async function main() {
   const tm = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)

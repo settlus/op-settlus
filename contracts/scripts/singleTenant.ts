@@ -1,4 +1,3 @@
-import '../env'
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
 
@@ -9,18 +8,18 @@ async function main() {
 
   // Tenant8yxfy sepolia
   //
-  // const tenantName = 'Tenant8yxfy'
-  // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
+  const tenantName = 'Tenant8yxfy'
+  const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed
-  const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
+  // const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
 
-  const tx = await tenantManager
-    .connect(signer)
-    .createTenantWithMintableContract(tenantName, 2, BigInt(15), 'Mintable', 'MTB')
-  await tx.wait()
-  const tenantAddress = await tenantManager.getTenantAddress(tenantName, { gasLimit: 100000000 })
-  console.log(`Created tenant: ${tenantName} by signer: ${signer.address}, tx: ${tx.hash}`)
+  // const tx = await tenantManager
+  //   .connect(signer)
+  //   .createTenantWithMintableContract(tenantName, 2, BigInt(15), 'Mintable', 'MTB')
+  // await tx.wait()
+  // const tenantAddress = await tenantManager.getTenantAddress(tenantName, { gasLimit: 100000000 })
+  // console.log(`Created tenant: ${tenantName} by signer: ${signer.address}, tx: ${tx.hash}`)
 
   const interval = 5000
   setInterval(async () => {
