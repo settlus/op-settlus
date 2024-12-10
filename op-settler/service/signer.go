@@ -5,8 +5,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"fmt"
 	"math/big"
+	"bytes"
+	"encoding/hex"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 
 	log "github.com/sirupsen/logrus"
 
@@ -22,6 +24,7 @@ import (
 var (
 	secp256k1N, _  = new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
 	secp256k1halfN = new(big.Int).Div(secp256k1N, big.NewInt(2))
+	chainID = uint64(53722735)
 )
 
 type Signer interface {
@@ -33,6 +36,7 @@ type KmsSigner struct {
 	ctx   context.Context
 	svc   *kms.Client
 	keyId string
+	pubkey *ecdsa.PublicKey
 }
 
 type LocalSigner struct {
@@ -62,20 +66,40 @@ func NewKmsSigner(ctx context.Context) *KmsSigner {
 	svc := kms.NewFromConfig(awsCfg)
 	keyId := GetKmsKeyID()
 
-	signer := &KmsSigner{
+
+	input := &kms.GetPublicKeyInput{
+		KeyId: &keyId,
+	}
+
+	result, err := svc.GetPublicKey(ctx, input)
+	if err != nil {
+		log.Errorf("failed to get public key from kms: %v", err)
+		return nil
+	}
+
+	var pki PublicKeyInfo
+	_, err = asn1.Unmarshal(result.PublicKey, &pki)
+	if err != nil {
+		return nil
+	}
+
+	pubkey, err := crypto.UnmarshalPubkey(pki.PublicKey.Bytes)
+	if err != nil {
+		return nil
+	}
+
+	return &KmsSigner{
 		ctx:   ctx,
 		svc:   svc,
 		keyId: keyId,
+		pubkey: pubkey,
 	}
-
-	return signer
 }
 
 func (ks *KmsSigner) Sign(data []byte) ([]byte, error) {
-	hash := crypto.Keccak256(data)
 	output, err := ks.svc.Sign(ks.ctx, &kms.SignInput{
 		KeyId:            aws.String(ks.keyId),
-		Message:          hash,
+		Message:          data,
 		MessageType:      types.MessageTypeDigest,
 		SigningAlgorithm: types.SigningAlgorithmSpecEcdsaSha256,
 	})
@@ -97,45 +121,36 @@ func (ks *KmsSigner) Sign(data []byte) ([]byte, error) {
 		signature.S = signature.S.Sub(secp256k1N, signature.S)
 	}
 
+	pubKeyBytes := secp256k1.S256().Marshal(ks.pubkey.X, ks.pubkey.Y)
+
 	rBytes := signature.R.Bytes()
 	sBytes := signature.S.Bytes()
-	// ??
-	sig := make([]byte, 65)
 
-	copy(sig[32-len(rBytes):], rBytes)
-	copy(sig[64-len(sBytes):], sBytes)
-	// ??
-	copy(sig[64:], []byte{1})
-	return sig, nil
+	rsSignature := append(adjustSignatureLength(rBytes), adjustSignatureLength(sBytes)...)
+	compSig := append(rsSignature, []byte{0}...)
+
+	recoveredPublicKeyBytes, err := crypto.Ecrecover(data, compSig)
+	if err != nil {
+		return nil, err
+	}
+
+	if hex.EncodeToString(recoveredPublicKeyBytes) != hex.EncodeToString(pubKeyBytes) {
+		compSig = append(rsSignature, []byte{1}...)
+		recoveredPublicKeyBytes, err = crypto.Ecrecover(data, compSig)
+		if err != nil {
+			return nil, err
+		}
+
+		if hex.EncodeToString(recoveredPublicKeyBytes) != hex.EncodeToString(pubKeyBytes) {
+			return nil, err
+		}
+	}
+
+	return compSig, nil
 }
 
 func (ks *KmsSigner) PublicAddress() common.Address {
-	input := &kms.GetPublicKeyInput{
-		KeyId: &ks.keyId,
-	}
-
-	result, err := ks.svc.GetPublicKey(ks.ctx, input)
-	if err != nil {
-		log.Errorf("failed to get public key from kms: %v", err)
-		return common.Address{}
-	}
-
-	var pki PublicKeyInfo
-	_, err = asn1.Unmarshal(result.PublicKey, &pki)
-	if err != nil {
-		return common.Address{}
-	}
-
-	s256Pub, err := crypto.UnmarshalPubkey(pki.PublicKey.Bytes)
-	if err != nil {
-		return common.Address{}
-	}
-
-	address := crypto.PubkeyToAddress(*s256Pub)
-
-	fmt.Printf("Public key: %s\n", address.Hex())
-
-	return address
+	return crypto.PubkeyToAddress(*ks.pubkey)
 }
 
 func NewLocalSigner() *LocalSigner {
@@ -158,4 +173,13 @@ func (ls *LocalSigner) Sign(data []byte) ([]byte, error) {
 	}
 
 	return signature, nil
+}
+
+func adjustSignatureLength(buffer []byte) []byte {
+	buffer = bytes.TrimLeft(buffer, "\x00")
+	for len(buffer) < 32 {
+		zeroBuf := []byte{0}
+		buffer = append(zeroBuf, buffer...)
+	}
+	return buffer
 }

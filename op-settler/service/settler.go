@@ -117,6 +117,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		Data:     msg.Data,
 	})
 
+
 	latestSigner := types.LatestSignerForChainID(chainID)
 	txBytes := latestSigner.Hash(tx).Bytes()
 
@@ -126,6 +127,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 		return err
 	}
 
+	//
 	recovered, err := secp256k1.RecoverPubkey(txBytes, signature)
 	if err != nil {
 		log.Errorf("Failed to recover public key: %v", err)
@@ -138,6 +140,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client) error {
 
 	pubKeyHash := crypto.Keccak256(recovered)
 	fmt.Printf("Recovered public key: %x\n", common.BytesToAddress(pubKeyHash[12:]))
+	//
 
 
 	signedTx, err := tx.WithSignature(latestSigner, signature)
