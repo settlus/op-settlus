@@ -15,10 +15,10 @@ interface ITenant {
 }
 
 contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+  uint256 public MAX_PER_TENANT;
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
-  uint256 public maxSettlementPerTenant = 5;
-    uint256 public tenantCreationFee;
+  uint256 public tenantCreationFee;
   address public newVar;
 
   event TenantCreated(
@@ -29,14 +29,22 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod
   );
 
-  event SettleAll();
+  event TenantAddressesLength(uint256 length);
+  event TenantSettled(address tenantAddress);
+
   event SettleFailed(address tenantAddress);
+
+  error DuplicateTenantName();
+  error NotScheduledTenant();
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
+    // initialize with 10
+    setMaxPerTenant(10);
+    // initialize with 0.1 ether
+    setTenantCreationFee(0.01 ether);
   }
-
 
   modifier onlyTenant() {
     require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
@@ -45,7 +53,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   modifier requiresFee() {
     // require equal to prevent excess payment
-    require(msg.value == tenantCreationFee, 'Insufficient tenant creation fee');
+    require(msg.value == tenantCreationFee, 'Need exact tenant creation fee');
     _;
   }
 
@@ -96,8 +104,9 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function settleAll() public onlyOwner {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
-      Tenant tenant = Tenant(payable(tenantAddresses[i]));
-      try tenant.settle(maxSettlementPerTenant) {} catch {
+      try ITenant(tenantAddresses[i]).settle(MAX_PER_TENANT) {
+        emit TenantSettled(tenantAddresses[i]);
+      } catch {
         emit SettleFailed(tenantAddresses[i]);
       }
     }
@@ -111,7 +120,11 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
   }
-  
+
+  function setMaxPerTenant(uint256 _maxPerTenant) public onlyOwner {
+    MAX_PER_TENANT = _maxPerTenant;
+  }
+
   function withdrawFees() public onlyOwner {
     payable(owner()).transfer(address(this).balance);
   }

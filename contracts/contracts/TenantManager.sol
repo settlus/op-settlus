@@ -43,7 +43,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   modifier requiresFee() {
     // require equal to prevent excess payment
-    require(msg.value == tenantCreationFee, 'Insufficient tenant creation fee');
+    require(msg.value == tenantCreationFee, 'Need exact tenant creation fee');
     _;
   }
 
@@ -53,7 +53,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     // initialize with 10
     setMaxPerTenant(10);
     // initialize with 0.1 ether
-    setTenantCreationFee(0.1 ether);
+    setTenantCreationFee(0.01 ether);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}

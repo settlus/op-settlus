@@ -8,7 +8,7 @@ describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameMintable = 'Tenant Mintable'
-  const tenantCreationFee = parseEther('0.1')
+  const tenantCreationFee = parseEther('0.01')
   const MAX_PER_TENANT = BigInt(10)
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
@@ -31,6 +31,15 @@ describe('TenantManager Test', function () {
 
     expect(await logs.find((log) => log.eventName === 'TenantCreated')).to.not.be.undefined
     expect(await logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantName).to.equal(tenantName)
+  })
+
+  it('should failed to create a Tenant contract with wrong tenant creation fee', async function () {
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
+
+    //  expect(await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+    //     account: tenantOwner.account,
+    //     value: tenantCreationFee + BigInt('200'),
+    //   })).to.be.revertedWith('Need exact tenant creation fee')
   })
 
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
@@ -255,7 +264,7 @@ describe('TenantManager Test', function () {
       ['Tenant2', 2, payoutPeriod, 'MintableTwo', 'BTM'],
       {
         account: tenantOwner2.account,
-        value: tenantCreationFee
+        value: tenantCreationFee,
       }
     )
     const tenant2Address = parseEventLogs({

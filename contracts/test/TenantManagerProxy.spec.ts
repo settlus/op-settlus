@@ -7,7 +7,7 @@ import { parseEventLogs, getAddress, zeroAddress, encodeFunctionData, parseEther
 describe('TenantManagerProxy test', function () {
   const tenantName = 'SampleTenant'
   const payoutPeriod = BigInt(60 * 60 * 24)
-  const tenantCreationFee = parseEther('0.1')
+  const tenantCreationFee = parseEther('0.01')
 
   async function deployTenantManagerProxyFixture() {
     const [deployer, tenantOwner, anonymous] = await hre.viem.getWalletClients()

@@ -9,7 +9,7 @@ describe('Tenant', function () {
   const tenantNameEth = 'Tenant ETH'
   const tenantNameERC20 = 'Tenant ERC20'
   const tenantNameSBT = 'Tenant SBT'
-  const tenantCreationFee = parseEther('0.1')
+  const tenantCreationFee = parseEther('0.01')
   const TokenName = 'BaseToken'
   const TokenSymbol = 'BT'
   const MintableName = 'Mintable'

@@ -1,4 +1,3 @@
-import '../env'
 import addresses from './contract-addresses.json'
 import hre from 'hardhat'
 
@@ -7,9 +6,9 @@ async function main() {
   const [signer] = await hre.ethers.getSigners()
   const tenantManager = await hre.ethers.getContractAt('TenantManager', addresses.tenantManagerProxy)
 
-  // Tenant8yxfy sepolia
+  // Tenantrmgsi alchemy testnet
   //
-  // const tenantName = 'Tenant8yxfy'
+  // const tenantName = 'Tenantrmgsi'
   // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed
@@ -17,9 +16,11 @@ async function main() {
 
   const tx = await tenantManager
     .connect(signer)
-    .createTenantWithMintableContract(tenantName, 2, BigInt(15), 'Mintable', 'MTB')
+    .createTenantWithMintableContract(tenantName, 2, BigInt(15), 'Mintable', 'MTB', {
+      value: hre.ethers.parseEther('0.01'),
+    })
   await tx.wait()
-  const tenantAddress = await tenantManager.getTenantAddress(tenantName, { gasLimit: 100000000 })
+  const tenantAddress = await tenantManager.getTenantAddress(tenantName)
   console.log(`Created tenant: ${tenantName} by signer: ${signer.address}, tx: ${tx.hash}`)
 
   const interval = 5000
