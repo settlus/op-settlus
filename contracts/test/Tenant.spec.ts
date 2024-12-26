@@ -9,6 +9,7 @@ describe('Tenant', function () {
   const tenantNameEth = 'Tenant ETH'
   const tenantNameERC20 = 'Tenant ERC20'
   const tenantNameSBT = 'Tenant SBT'
+  const tenantCreationFee = parseEther('0.1')
   const TokenName = 'BaseToken'
   const TokenSymbol = 'BT'
   const MintableName = 'Mintable'
@@ -22,6 +23,7 @@ describe('Tenant', function () {
     // Deploy Tenant with ETH currency
     const ethTx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
     const ethReceipt = await publicClient.waitForTransactionReceipt({
       hash: ethTx,
@@ -38,6 +40,7 @@ describe('Tenant', function () {
     // Deploy Tenant with ERC20 currency
     const erc20Tx = await tenantManager.write.createTenant([tenantNameERC20, 1, erc20.address, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
     const erc20Receipt = await publicClient.waitForTransactionReceipt({
       hash: erc20Tx,
@@ -54,6 +57,7 @@ describe('Tenant', function () {
     // Deploy Tenant with Mintable currency
     const mintableTx = await tenantManager.write.createTenant([tenantNameSBT, 2, mintable.address, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
     const mintableReceipt = await publicClient.waitForTransactionReceipt({
       hash: mintableTx,
@@ -77,6 +81,7 @@ describe('Tenant', function () {
       ['Tenant Controlled Mintable', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -108,6 +113,7 @@ describe('Tenant', function () {
       [tenantNameSBT, 2, payoutPeriod, MintableName, MintableSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const mintableReceipt = await publicClient.waitForTransactionReceipt({
@@ -162,6 +168,7 @@ describe('Tenant', function () {
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -197,6 +204,7 @@ describe('Tenant', function () {
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -219,6 +227,7 @@ describe('Tenant', function () {
 
     const tx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
     const logs = parseEventLogs({
@@ -242,6 +251,7 @@ describe('Tenant', function () {
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -276,6 +286,7 @@ describe('Tenant', function () {
       ['Test Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -333,6 +344,7 @@ describe('Tenant', function () {
 
     const tx = await tenantManager.write.createTenant(['Settle Tenant', 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -377,6 +389,7 @@ describe('Tenant', function () {
 
     const tx = await tenantManager.write.createTenant(['Settle Tenant', 1, erc20.address, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -415,6 +428,7 @@ describe('Tenant', function () {
       ['Settle Tenant', 2, payoutPeriod, MintableName, MintableSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -459,6 +473,7 @@ describe('Tenant', function () {
       ['Settle Tenant', 2, payoutPeriod, TokenName, TokenSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
 
@@ -517,6 +532,7 @@ describe('Tenant', function () {
       ['Tenant1', 2, payoutPeriod, 'MintableOne', 'MTB'],
       {
         account: tenantOwner1.account,
+        value: tenantCreationFee,
       }
     )
     const tenant1Address = parseEventLogs({
@@ -528,6 +544,7 @@ describe('Tenant', function () {
       ['Tenant2', 2, payoutPeriod, 'MintableTwo', 'BTM'],
       {
         account: tenantOwner2.account,
+        value: tenantCreationFee,
       }
     )
     const tenant2Address = parseEventLogs({

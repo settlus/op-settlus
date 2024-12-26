@@ -8,10 +8,17 @@ import './BasicERC20.sol';
 import './ERC20NonTransferable.sol';
 import './Tenant.sol';
 
+interface ITenant {
+  function settle(uint256 maxPerTenant) external;
+  function name() external view returns (string memory);
+  function needSettlement() external view returns (bool);
+}
+
 contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
   uint256 public maxSettlementPerTenant = 5;
+    uint256 public tenantCreationFee;
   address public newVar;
 
   event TenantCreated(
@@ -30,6 +37,18 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     __UUPSUpgradeable_init();
   }
 
+
+  modifier onlyTenant() {
+    require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
+    _;
+  }
+
+  modifier requiresFee() {
+    // require equal to prevent excess payment
+    require(msg.value == tenantCreationFee, 'Insufficient tenant creation fee');
+    _;
+  }
+
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
   function createTenant(
@@ -37,7 +56,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     Tenant.CurrencyType ccyType,
     address ccyAddr,
     uint256 payoutPeriod
-  ) public returns (address) {
+  ) public payable requiresFee returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
 
@@ -55,7 +74,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod,
     string memory tokenName,
     string memory tokenSymbol
-  ) public returns (address) {
+  ) public payable requiresFee returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     require(tenants[nameHash] == address(0), 'Tenant name already exists');
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
@@ -91,6 +110,14 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function getTenantAddresses() public view returns (address[] memory) {
     return tenantAddresses;
+  }
+  
+  function withdrawFees() public onlyOwner {
+    payable(owner()).transfer(address(this).balance);
+  }
+
+  function setTenantCreationFee(uint256 _fee) public onlyOwner {
+    tenantCreationFee = _fee;
   }
 
   function newFunction(address newAddress) public onlyOwner {

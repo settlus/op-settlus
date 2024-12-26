@@ -18,6 +18,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   uint256 public MAX_PER_TENANT;
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
+  uint256 public tenantCreationFee;
 
   event TenantCreated(
     address tenantAddress,
@@ -40,11 +41,19 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     _;
   }
 
+  modifier requiresFee() {
+    // require equal to prevent excess payment
+    require(msg.value == tenantCreationFee, 'Insufficient tenant creation fee');
+    _;
+  }
+
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
     __UUPSUpgradeable_init();
     // initialize with 10
     setMaxPerTenant(10);
+    // initialize with 0.1 ether
+    setTenantCreationFee(0.1 ether);
   }
 
   function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -54,7 +63,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     Tenant.CurrencyType ccyType,
     address ccyAddr,
     uint256 payoutPeriod
-  ) public returns (address) {
+  ) public payable requiresFee returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
 
@@ -72,7 +81,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod,
     string memory tokenName,
     string memory tokenSymbol
-  ) public returns (address) {
+  ) public payable requiresFee returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
     require(ccyType == Tenant.CurrencyType.MINTABLES, 'ccyType must be MINTABLES');
@@ -122,5 +131,13 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function getOwner() public view returns (address) {
     return owner();
+  }
+
+  function withdrawFees() public onlyOwner {
+    payable(owner()).transfer(address(this).balance);
+  }
+
+  function setTenantCreationFee(uint256 _fee) public onlyOwner {
+    tenantCreationFee = _fee;
   }
 }

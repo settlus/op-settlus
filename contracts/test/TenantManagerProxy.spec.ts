@@ -2,11 +2,12 @@ import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
-import { parseEventLogs, getAddress, zeroAddress, encodeFunctionData } from 'viem'
+import { parseEventLogs, getAddress, zeroAddress, encodeFunctionData, parseEther } from 'viem'
 
 describe('TenantManagerProxy test', function () {
   const tenantName = 'SampleTenant'
   const payoutPeriod = BigInt(60 * 60 * 24)
+  const tenantCreationFee = parseEther('0.1')
 
   async function deployTenantManagerProxyFixture() {
     const [deployer, tenantOwner, anonymous] = await hre.viem.getWalletClients()
@@ -55,6 +56,7 @@ describe('TenantManagerProxy test', function () {
 
     const tx = await tenantManager.write.createTenant([tenantName, 0, zeroAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })

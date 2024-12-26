@@ -31,6 +31,15 @@ const getPrivateKey = (env?: string) => {
   return [];
 }
 
+const getAlchemyKey = (): string => {
+  const alchemyKey = vars.get('ALCHEMY_KEY')
+  if (alchemyKey && alchemyKey !== '') {
+    return alchemyKey
+  }
+  console.log('ALCHEMY_KEY Not Set! Please set up .env')
+  return ''
+}
+
 const config: HardhatUserConfig = {
   networks: {
     local: {
@@ -47,6 +56,11 @@ const config: HardhatUserConfig = {
       url: 'https://rpc-settlus-testnet-nw9b4xdc7r.t.conduit.xyz',
       accounts: getPrivateKey(),
       chainId: 53722735
+    },
+    alchemy: {
+        url: `https://settlus-septestnet.g.alchemy.com/v2/${getAlchemyKey()}`,
+        accounts: getPrivateKey(),
+        chainId: 5373
     }
   },
   solidity: {
