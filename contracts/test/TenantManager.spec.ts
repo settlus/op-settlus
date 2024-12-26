@@ -1,13 +1,14 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { parseEventLogs, getAddress, keccak256, encodePacked } from 'viem'
+import { parseEventLogs, getAddress, keccak256, encodePacked, parseEther } from 'viem'
 import { mintableFixture } from './utils'
 
 describe('TenantManager Test', function () {
   const tenantName = 'SampleTenant'
   const tenantNameEth = 'Tenant ETH'
   const tenantNameMintable = 'Tenant Mintable'
+  const tenantCreationFee = parseEther('0.01')
   const MAX_PER_TENANT = BigInt(10)
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
@@ -19,6 +20,7 @@ describe('TenantManager Test', function () {
 
     const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -31,12 +33,22 @@ describe('TenantManager Test', function () {
     expect(await logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantName).to.equal(tenantName)
   })
 
+  it('should failed to create a Tenant contract with wrong tenant creation fee', async function () {
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
+
+    //  expect(await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+    //     account: tenantOwner.account,
+    //     value: tenantCreationFee + BigInt('200'),
+    //   })).to.be.revertedWith('Need exact tenant creation fee')
+  })
+
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
     const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 
     // Tenant with ETH currency
     const ethTx = await tenantManager.write.createTenant([tenantNameEth, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
     const ethReceipt = await publicClient.waitForTransactionReceipt({ hash: ethTx })
     const ethLogs = parseEventLogs({
@@ -50,6 +62,7 @@ describe('TenantManager Test', function () {
       [tenantNameMintable, 2, payoutPeriod, MintableName, MintableSymbol],
       {
         account: tenantOwner.account,
+        value: tenantCreationFee,
       }
     )
     const mintableReceipt = await publicClient.waitForTransactionReceipt({ hash: mintableTx })
@@ -68,6 +81,7 @@ describe('TenantManager Test', function () {
 
     const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
       account: tenantOwner.account,
+      value: tenantCreationFee,
     })
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
@@ -108,6 +122,7 @@ describe('TenantManager Test', function () {
     // Create tenants using the ERC20 tokens
     const tx1 = await tenantManager.write.createTenant(['Tenant1', 1, tenant1Erc20.address, payoutPeriod], {
       account: tenantOwner1.account,
+      value: tenantCreationFee,
     })
     const tenant1Address = parseEventLogs({
       logs: (await publicClient.waitForTransactionReceipt({ hash: tx1 })).logs,
@@ -116,6 +131,7 @@ describe('TenantManager Test', function () {
 
     const tx2 = await tenantManager.write.createTenant(['Tenant2', 1, tenant2Erc20.address, payoutPeriod], {
       account: tenantOwner2.account,
+      value: tenantCreationFee,
     })
     const tenant2Address = parseEventLogs({
       logs: (await publicClient.waitForTransactionReceipt({ hash: tx2 })).logs,
@@ -174,6 +190,7 @@ describe('TenantManager Test', function () {
       ['Tenant1', 2, payoutPeriod, 'MintableOne', 'MTB'],
       {
         account: tenantOwner1.account,
+        value: tenantCreationFee,
       }
     )
     const tenant1Address = parseEventLogs({
@@ -185,6 +202,7 @@ describe('TenantManager Test', function () {
       ['Tenant2', 2, payoutPeriod, 'MintableTwo', 'BTM'],
       {
         account: tenantOwner2.account,
+        value: tenantCreationFee,
       }
     )
     const tenant2Address = parseEventLogs({
@@ -234,6 +252,7 @@ describe('TenantManager Test', function () {
       ['Tenant1', 2, payoutPeriod, 'MintableOne', 'MTB'],
       {
         account: tenantOwner1.account,
+        value: tenantCreationFee,
       }
     )
     const tenant1Address = parseEventLogs({
@@ -245,6 +264,7 @@ describe('TenantManager Test', function () {
       ['Tenant2', 2, payoutPeriod, 'MintableTwo', 'BTM'],
       {
         account: tenantOwner2.account,
+        value: tenantCreationFee,
       }
     )
     const tenant2Address = parseEventLogs({
