@@ -16,22 +16,21 @@ jobs:
   build:
     runs-on: "ubuntu-latest"
     steps:
-      - name: "Check out the repo"
-        uses: actions/checkout@v4
-
-      - name: "Install Foundry"
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: "Install Bun"
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
       - name: "Install the Node.js dependencies"
+        working-directory: ./contracts
         run: bun install
 
       - name: "Build the contracts and print their size"
+        working-directory: ./contracts
         run: forge build --sizes
 
       - name: "Add build summary"
+        working-directory: ./contracts
         run: |
           echo "## Build result" >> $GITHUB_STEP_SUMMARY
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
@@ -46,19 +45,17 @@ jobs:
       ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
       - uses: oven-sh/setup-bun@v2
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
 
       - name: Install Dependencies
         working-directory: ./contracts
         run: bun install
 
       - name: "Show the Foundry config"
+        working-directory: ./contracts
         run: forge config
 
       - name: Set Hardhat Variables
