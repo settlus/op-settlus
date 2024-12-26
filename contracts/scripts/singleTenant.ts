@@ -12,7 +12,7 @@ async function main() {
   // const tenantAddress = await tenantManager.getTenantAddress(tenantName)
 
   // // Change tenant name if needed
-  const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
+  // const tenantName = 'Tenant' + Math.random().toString(36).substring(2, 7)
 
   const tx = await tenantManager
     .connect(signer)
