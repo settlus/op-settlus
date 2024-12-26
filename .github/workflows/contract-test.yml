@@ -13,8 +13,31 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Check out the repo"
+        uses: actions/checkout@v4
+
+      - name: "Install Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Install Bun"
+        uses: oven-sh/setup-bun@v2
+
+      - name: "Install the Node.js dependencies"
+        run: bun install
+
+      - name: "Build the contracts and print their size"
+        run: forge build --sizes
+
+      - name: "Add build summary"
+        run: |
+          echo "## Build result" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
   test:
-    name: Test
+    needs: ["build"]
     runs-on: ubuntu-latest
     env:
       ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
@@ -26,22 +49,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-          run_install: false
+      - uses: oven-sh/setup-bun@v2
 
       - name: Setup Node
         uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: 'contracts/pnpm-lock.yaml' 
 
       - name: Install Dependencies
         working-directory: ./contracts
-        run: pnpm install
+        run: bun install
+
+      - name: "Show the Foundry config"
+        run: forge config
 
       - name: Set Hardhat Variables
         working-directory: ./contracts
@@ -52,4 +70,4 @@ jobs:
 
       - name: Run Tests
         working-directory: ./contracts
-        run: pnpm test
+        run: forge test
