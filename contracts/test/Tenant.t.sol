@@ -32,4 +32,37 @@ contract TenantTest is Test {
         testTenant.addRecorder(recorder);
         assert(testTenant.hasRole(testTenant.RECORDER_ROLE(), recorder));
     }
+
+    function test_removeRecorder() external {
+        // removing the recorder from a random address should fail
+        address recorder = address(3);
+        vm.expectRevert();
+        testTenant.removeRecorder(recorder);
+
+        // using the manager address as sender should succeed
+        vm.prank(manager);
+        testTenant.addRecorder(recorder);
+        assert(testTenant.hasRole(testTenant.RECORDER_ROLE(), recorder));
+
+        // removing the recorder from a random address should fail
+        vm.expectRevert();
+        testTenant.removeRecorder(recorder);
+
+        // using the manager address as sender should succeed
+        vm.prank(manager);
+        testTenant.removeRecorder(recorder);
+        assert(!testTenant.hasRole(testTenant.RECORDER_ROLE(), recorder));
+    }
+
+    function test_setCurrencyAddress() external {
+        // setting the currency address from a random address should fail
+        address currencyAddr = address(4);
+        vm.expectRevert();
+        testTenant.setCurrencyAddress(currencyAddr);
+
+        // using the manager address as sender should succeed
+        vm.prank(manager);
+        testTenant.setCurrencyAddress(currencyAddr);
+        assertEq(testTenant.ccyAddr(), currencyAddr);
+    }
 }
