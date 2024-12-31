@@ -17,7 +17,6 @@ import (
 type TxChecker struct {
 	client    *ethclient.Client
 	txChannel chan *TxCheckMsg
-	wg        sync.WaitGroup
 }
 
 type TxCheckMsg struct {
@@ -28,14 +27,12 @@ type TxCheckMsg struct {
 func NewTxChecker(client *ethclient.Client) *TxChecker {
 	return &TxChecker{
 		client:    client,
-		txChannel: make(chan *TxCheckMsg),
+		txChannel: make(chan *TxCheckMsg, 50),
 	}
 }
 
 func (tc *TxChecker) Start(ctx context.Context) {
-	tc.wg.Add(1)
 	go func() {
-		defer tc.wg.Done()
 		for {
 			select {
 			case <-ctx.Done():
@@ -102,5 +99,4 @@ func (tc *TxChecker) CheckTransaction(tx *TxCheckMsg) {
 
 func (tl *TxChecker) Shutdown() {
 	close(tl.txChannel)
-	tl.wg.Wait()
 }
