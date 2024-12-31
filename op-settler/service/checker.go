@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"math/big"
-	"sync"
-
+	
 	log "github.com/sirupsen/logrus"
 
 	"github.com/ethereum/go-ethereum"
