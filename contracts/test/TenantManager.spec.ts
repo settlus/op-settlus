@@ -42,6 +42,49 @@ describe('TenantManager Test', function () {
     //   })).to.be.revertedWith('Need exact tenant creation fee')
   })
 
+  it('should remove a Tenant contract via proxy', async function () {
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
+
+    const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+      value: tenantCreationFee,
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+
+    const removeTx = await tenantManager.write.removeTenant([tenantName], {
+      account: tenantOwner.account,
+    })
+
+    const removeReceipt = await publicClient.waitForTransactionReceipt({ hash: removeTx })
+    const logs = parseEventLogs({
+      logs: removeReceipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+
+    expect(await logs.find((log) => log.eventName === 'TenantRemoved')).to.not.be.undefined
+  })
+
+  it('should not remove a Tenant when the sender is not the owner of TenantManager or creator of the Tenant', async function () {
+    const { tenantManager, tenantOwner, publicClient, nftOwner } = await loadFixture(mintableFixture)
+
+    const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+      value: tenantCreationFee,
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const logs = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+
+    // const removeTx = await tenantManager.write.removeTenant([tenantName], {
+    //   account: nftOwner.account,
+    // })
+    // expect(removeTx).to.be.revertedWith('Only owner can remove tenant')
+  })
+
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
     const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 

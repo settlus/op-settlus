@@ -12,6 +12,7 @@ interface ITenant {
   function settle(uint256 maxPerTenant) external;
   function name() external view returns (string memory);
   function needSettlement() external view returns (bool);
+  function creator() external view returns (address);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
@@ -28,16 +29,27 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 payoutPeriod
   );
 
+  event TenantRemoved(address tenantAddress, string tenantName);
+
   event TenantAddressesLength(uint256 length);
   event TenantSettled(address tenantAddress);
 
   event SettleFailed(address tenantAddress);
 
   error DuplicateTenantName();
-  error NotScheduledTenant();
+  error NoRegisteredTenant();
+  error UnauthorizedAction();
 
   modifier onlyTenant() {
     require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, 'Not Registered Tenant');
+    _;
+  }
+
+  modifier onlyTenantAndOwner() {
+    require(
+      tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender || owner() == msg.sender,
+      'Unauthorized Access'
+    );
     _;
   }
 
@@ -111,6 +123,23 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function getTenantAddress(string memory name) public view returns (address) {
     bytes32 nameHash = keccak256(abi.encodePacked(name));
     return tenants[nameHash];
+  }
+
+  function removeTenant(string memory name) public {
+    bytes32 nameHash = keccak256(abi.encodePacked(name));
+    address tenantAddress = tenants[nameHash];
+    if (tenantAddress == address(0)) revert NoRegisteredTenant();
+    if (ITenant(tenantAddress).creator() != msg.sender && owner() != msg.sender) revert UnauthorizedAction();
+    delete tenants[nameHash];
+    for (uint256 i = 0; i < tenantAddresses.length; i++) {
+      if (tenantAddresses[i] == tenantAddress) {
+        tenantAddresses[i] = tenantAddresses[tenantAddresses.length - 1];
+        tenantAddresses.pop();
+        break;
+      }
+    }
+
+    emit TenantRemoved(tenantAddress, name);
   }
 
   function getTenantAddresses() public view returns (address[] memory) {
