@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
+import TenantManagerArtifact from '../artifacts/src/TenantManager.sol/TenantManager.json'
 import { parseEventLogs, getAddress, zeroAddress, encodeFunctionData, parseEther } from 'viem'
 
 describe('TenantManagerProxy test', function () {

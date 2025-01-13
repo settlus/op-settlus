@@ -70,6 +70,10 @@ const config: HardhatUserConfig = {
         enabled: true,
       },
     },
+  },
+  paths: {
+    sources: './src',
+    tests: './test',
   }
 }
 

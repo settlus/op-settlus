@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
-import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
+import TenantManagerArtifact from '../artifacts/src/TenantManager.sol/TenantManager.json'
 import { getAddress, encodeFunctionData } from 'viem'
 
 export function mintableFixture() {
