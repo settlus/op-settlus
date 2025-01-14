@@ -15,7 +15,7 @@ describe('Tenant', function () {
   const MintableName = 'Mintable'
   const MintableSymbol = 'MTB'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
-  const chainId = BigInt(1)
+  const chainId = BigInt(31337) // hardhat test chainid
 
   it('should verify each tenant has a existing currency address(ERC20, SBT)', async function () {
     const { tenantManager, tenantOwner, publicClient, erc20, mintable } = await loadFixture(nonMintableFixture)
@@ -195,6 +195,39 @@ describe('Tenant', function () {
     expect(utxr[4]).to.equal(BigInt(0))
     expect(utxr[5]).to.equal(zeroAddress)
     expect(utxr[6]).to.equal(BigInt(0))
+  })
+
+  it('should get UTXR by reqID', async function () {
+    const { tenantManager, tenantOwner, publicClient, nftOwner, nft } = await loadFixture(nonMintableFixture)
+
+    const tx = await tenantManager.write.createTenantWithMintableContract(
+      ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
+      {
+        account: tenantOwner.account,
+        value: tenantCreationFee,
+      }
+    )
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const logs = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+    const tenantAddress = logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
+
+    const reqID = 'reqId1'
+    const amount = BigInt(100)
+
+    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+
+    const utxr = await tenant.read.getUtxrByReqID([reqID])
+
+    expect(await tenant.read.getUtxrsLength()).to.equal(1)
+    expect(await tenant.read.reqIDExists([reqID])).to.be.true
+    expect(utxr.reqID).to.equal(reqID)
+    expect(utxr.amount).to.equal(amount)
+    expect(utxr.recipient).to.equal(getAddress(nftOwner.account.address))
   })
 
   it('should only allow owner to control treasury funds', async function () {

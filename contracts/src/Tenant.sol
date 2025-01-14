@@ -9,6 +9,10 @@ interface IERC721 {
     function ownerOf(uint256 tokenId) external view returns (address);
 }
 
+interface IOwnershipManager {
+    function ownerOf(uint256 chainId, address contractAddr, uint256 tokenId) external view returns (address);
+}
+
 interface IMintable {
     function mint(address to, uint256 amount) external;
 }
@@ -50,11 +54,13 @@ contract Tenant is AccessControl {
     CurrencyType public ccyType;
     address public ccyAddr;
     uint256 public payoutPeriod;
+    address public ownershipManager;
 
     UTXR[] public utxrs;
     uint256 public nextToSettleIdx;
 
     mapping(string => uint256) public reqIDToIdx;
+    mapping(string => bool) public reqIDExists;
 
     constructor(
         address _manager,
@@ -110,11 +116,16 @@ contract Tenant is AccessControl {
         public
         onlyRole(RECORDER_ROLE)
     {
+        address nftOwner;
         require(bytes(reqID).length > 0, "reqID cannot be an empty string");
         require(reqIDToIdx[reqID] == 0, "Duplicate reqID");
 
         uint256 payoutTimestamp = block.timestamp + payoutPeriod;
-        address nftOwner = IERC721(contractAddr).ownerOf(tokenID);
+        if(chainID == block.chainid) {
+            nftOwner = IERC721(contractAddr).ownerOf(tokenID);
+        } else {
+            nftOwner = IOwnershipManager(manager).ownerOf(chainID, contractAddr, tokenID);
+        }
 
         UTXR memory newUTXR = UTXR({
             reqID: reqID,
@@ -129,6 +140,7 @@ contract Tenant is AccessControl {
 
         utxrs.push(newUTXR);
         reqIDToIdx[reqID] = utxrs.length - 1;
+        reqIDExists[reqID] = true;
     }
 
     // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
@@ -151,10 +163,18 @@ contract Tenant is AccessControl {
 
         utxrs.push(newUTXR);
         reqIDToIdx[reqID] = utxrs.length - 1;
+        reqIDExists[reqID] = true;
     }
 
     function getUtxrsLength() public view returns (uint256) {
         return utxrs.length;
+    }
+
+    function getUtxrByReqID(string memory reqID) public view returns (UTXR memory) {
+        require(bytes(reqID).length > 0, "reqID cannot be an empty string");
+        require(reqIDExists[reqID], "reqID not found");
+
+        return utxrs[reqIDToIdx[reqID]];
     }
 
     function cancel(string memory reqID) external onlyRole(RECORDER_ROLE) {
@@ -220,6 +240,10 @@ contract Tenant is AccessControl {
 
     function getRemainingUTXRCount() public view returns (uint256) {
         return utxrs.length - nextToSettleIdx;
+    }
+
+    function setOwnershipManager(address _ownershipManager) external onlyManagerOrAdmin {
+        ownershipManager = _ownershipManager;
     }
 
     receive() external payable { }
