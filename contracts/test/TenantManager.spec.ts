@@ -14,6 +14,7 @@ describe('TenantManager Test', function () {
   const MintableSymbol = 'MTB'
   const defaultAddress = '0x0000000000000000000000000000000000000000'
   const payoutPeriod = BigInt(60 * 60 * 24) // 1 day in seconds
+  const chainId = BigInt(31337) // hardhat test chainid
 
   it('should create a Tenant contract with correct parameters and emit event via proxy', async function () {
     const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
@@ -40,6 +41,49 @@ describe('TenantManager Test', function () {
     //     account: tenantOwner.account,
     //     value: tenantCreationFee + BigInt('200'),
     //   })).to.be.revertedWith('Need exact tenant creation fee')
+  })
+
+  it('should remove a Tenant contract via proxy', async function () {
+    const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
+
+    const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+      value: tenantCreationFee,
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+
+    const removeTx = await tenantManager.write.removeTenant([tenantName], {
+      account: tenantOwner.account,
+    })
+
+    const removeReceipt = await publicClient.waitForTransactionReceipt({ hash: removeTx })
+    const logs = parseEventLogs({
+      logs: removeReceipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+
+    expect(await logs.find((log) => log.eventName === 'TenantRemoved')).to.not.be.undefined
+  })
+
+  it('should not remove a Tenant when the sender is not the owner of TenantManager or creator of the Tenant', async function () {
+    const { tenantManager, tenantOwner, publicClient, nftOwner } = await loadFixture(mintableFixture)
+
+    const tx = await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+      account: tenantOwner.account,
+      value: tenantCreationFee,
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const logs = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+
+    // const removeTx = await tenantManager.write.removeTenant([tenantName], {
+    //   account: nftOwner.account,
+    // })
+    // expect(removeTx).to.be.revertedWith('Only owner can remove tenant')
   })
 
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
@@ -154,11 +198,11 @@ describe('TenantManager Test', function () {
     const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500)
 
-    await tenant1.write.record([reqID1, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+    await tenant1.write.record([reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner1.account,
     })
 
-    await tenant2.write.record([reqID2, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+    await tenant2.write.record([reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner2.account,
     })
 
@@ -217,11 +261,11 @@ describe('TenantManager Test', function () {
     const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500)
 
-    await tenant1.write.record([reqID1, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+    await tenant1.write.record([reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner1.account,
     })
 
-    await tenant2.write.record([reqID2, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+    await tenant2.write.record([reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner2.account,
     })
 
@@ -284,11 +328,11 @@ describe('TenantManager Test', function () {
     const amountToSettle = BigInt(1)
 
     for (let i = 0; i < recordNumber; i++) {
-      await tenant1.write.record([reqID1 + i, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+      await tenant1.write.record([reqID1 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
         account: tenantOwner1.account,
       })
 
-      await tenant2.write.record([reqID2 + i, amountToSettle, BigInt(1), nft.address, BigInt(0)], {
+      await tenant2.write.record([reqID2 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
         account: tenantOwner2.account,
       })
     }
