@@ -1,6 +1,6 @@
 import fs from 'fs'
 import hre from 'hardhat'
-import TenantManagerArtifact from '../artifacts/contracts/TenantManager.sol/TenantManager.json'
+import TenantManagerArtifact from '../artifacts/src/TenantManager.sol/TenantManager.json'
 import { encodeFunctionData } from 'viem'
 import { vars } from 'hardhat/config'
 
