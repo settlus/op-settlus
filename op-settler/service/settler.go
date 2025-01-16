@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"math/big"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -25,44 +26,63 @@ func Start(ctx context.Context) error {
 	}
 
 	signer := NewSigner(ctx)
+	fromAddress := signer.PublicAddress()
 
 	txChecker := NewTxChecker(client)
 	txChecker.Start(ctx)
 	defer txChecker.Shutdown()
 
-	headerChannel := make(chan *types.Header)
-	sub, err := client.SubscribeNewHead(ctx, headerChannel)
-	if err != nil {
-		log.Errorf("Failed to subscribe to new block headers: %v", err)
-		return err
-	}
+	var lastBlockNum *big.Int
+	var lastProcessedNonce uint64
+
+	ticker := time.NewTicker(time.Duration(GetPollingInterval()) * time.Millisecond)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infoln("Context cancelled, shutting down...")
 			return nil
-		case err := <-sub.Err():
-			log.Errorf("Subscription error: %v", err)
-			return err
-		case header := <-headerChannel:
-			log.Printf("New block: %v", header.Number.String())
+		case <-ticker.C:
+			header, err := client.HeaderByNumber(ctx, nil)
+			if err != nil {
+				log.Errorf("Failed to get latest block header: %v", err)
+				continue
+			}
+
+			if lastBlockNum != nil && header.Number.Cmp(lastBlockNum) <= 0 {
+				continue
+			}
+
+			lastBlockNum = header.Number
+			log.Infof("Processing new block: %v", header.Number.String())
+
 			go func() {
-				tx, msg, err := callSettleAll(ctx, client, signer)
+				nonce, err := client.PendingNonceAt(ctx, fromAddress)
+				if err != nil {
+					log.Errorf("Failed to fetch nonce: %v", err)
+					return
+				}
+
+				if nonce == lastProcessedNonce {
+					log.Warnf("Duplicate nonce detected (%v). Skipping transaction for this block.", nonce)
+					return
+				}
+
+				tx, msg, err := callSettleAll(ctx, client, signer, nonce)
 				if err != nil {
 					log.Errorf("Failed to call settleAll: %v", err)
-				} else {
-					if tx != nil {
-						txChecker.CheckTransaction(&TxCheckMsg{tx, &msg})
-						log.Debugf("Transaction msg: %+v", msg)
-					}
+				} else if tx != nil {
+					lastProcessedNonce = tx.Nonce() // Update the last processed nonce
+					txChecker.CheckTransaction(&TxCheckMsg{tx, &msg})
+					log.Infof("Transaction successfully sent with nonce %v", tx.Nonce())
 				}
 			}()
 		}
 	}
 }
 
-func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer) (*types.Transaction, ethereum.CallMsg, error) {
+func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer, nonce uint64) (*types.Transaction, ethereum.CallMsg, error) {
 	chainID, err := client.NetworkID(ctx)
 	if err != nil {
 		log.Errorf("Failed to get chain ID: %v", err)
@@ -74,25 +94,18 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer)
 
 	needSettlement, err := checkNeedSettlement(ctx, client, tenantManagerABI, proxyAddress)
 	if err != nil {
-		log.Errorf("Failed to get settle required tenants: %v", err)
+		log.Errorf("Failed to determine if settlement is needed: %v", err)
 		return nil, ethereum.CallMsg{}, err
 	}
 
 	if !needSettlement {
-		log.Infof("No tenants to settle")
+		log.Infof("No tenants require settlement at this time.")
 		return nil, ethereum.CallMsg{}, nil
 	}
 
 	inputData, err := tenantManagerABI.Pack("settleAll")
 	if err != nil {
-		log.Errorf("Failed to pack input data: %v", err)
-		return nil, ethereum.CallMsg{}, err
-	}
-
-	fromAddress := signer.PublicAddress()
-	nonce, err := client.PendingNonceAt(ctx, fromAddress)
-	if err != nil {
-		log.Errorf("Failed to get nonce: %v", err)
+		log.Errorf("Failed to pack input data for settleAll: %v", err)
 		return nil, ethereum.CallMsg{}, err
 	}
 
@@ -103,7 +116,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer)
 	}
 
 	msg := ethereum.CallMsg{
-		From: fromAddress,
+		From: signer.PublicAddress(),
 		To:   &proxyAddress,
 		Data: inputData,
 	}
@@ -134,7 +147,7 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer)
 
 	signedTx, err := tx.WithSignature(latestSigner, signature)
 	if err != nil {
-		log.Errorf("Failed to return signed signature: %v", err)
+		log.Errorf("Failed to apply signature to transaction: %v", err)
 		return nil, ethereum.CallMsg{}, err
 	}
 
@@ -144,10 +157,10 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer)
 		return nil, ethereum.CallMsg{}, err
 	}
 
-	log.Infof("Transaction sent: %s", signedTx.Hash().Hex())
-
+	log.Infof("Transaction sent successfully: %s", signedTx.Hash().Hex())
 	return signedTx, msg, nil
 }
+
 
 func checkNeedSettlement(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) (bool, error) {
 	getSettlementScheduleData, err := tenantManagerABI.Pack("checkNeedSettlement")
@@ -167,7 +180,6 @@ func checkNeedSettlement(ctx context.Context, client *ethclient.Client, tenantMa
 		return false, err
 	}
 
-	// Unpack the boolean result from the call
 	var needSettlement bool
 	err = tenantManagerABI.UnpackIntoInterface(&needSettlement, "checkNeedSettlement", result)
 	if err != nil {
