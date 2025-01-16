@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -13,6 +14,7 @@ const (
 	proxyAddress = "PROXY_ADDRESS"
 	kmsKeyID     = "KMS_KEY_ID"
 	signMode     = "SIGN_MODE"
+	pollingInterval = "POLLING_INTERVAL"
 )
 
 func init() {
@@ -50,6 +52,14 @@ func GetProxyAddress() string {
 
 func GetKmsKeyID() string {
 	return getEnvOrPanic(kmsKeyID)
+}
+
+func GetPollingInterval() int64 {
+	val, err := strconv.ParseInt(getEnvOrPanic(pollingInterval), 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse polling interval: %v", err))
+	}
+	return val
 }
 
 func GetSignMode() string {
