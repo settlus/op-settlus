@@ -13,6 +13,19 @@ interface ITenant {
   function name() external view returns (string memory);
   function needSettlement() external view returns (bool);
   function creator() external view returns (address);
+  function hasRole(bytes32 role, address account) external view returns (bool);
+  function record(
+    string memory reqID,
+    uint256 amount,
+    uint256 chainID,
+    address contractAddr,
+    uint256 tokenID,
+    address recipient
+  ) external;
+}
+
+interface IOwnershipManager {
+  function ownerOf(uint256 chainId, address contractAddr, uint256 tokenId) external view returns (address);
 }
 
 contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
@@ -20,6 +33,10 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
   uint256 public tenantCreationFee;
+  address public ownershipManager;
+
+  // to check the role in tenant
+  bytes32 public constant RECORDER_ROLE = keccak256("RECORDER_ROLE");
 
   event TenantCreated(
     address tenantAddress,
@@ -154,6 +171,30 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return false;
   }
 
+  function record(
+    address tenantAddress,
+    string memory reqID,
+    uint256 amount,
+    uint256 chainID,
+    address contractAddr,
+    uint256 tokenID
+  ) public {
+    address nftOwner;
+    if (chainID == block.chainid) {
+      nftOwner = IERC721(contractAddr).ownerOf(tokenID);
+    } else {
+      nftOwner = IOwnershipManager(ownershipManager).ownerOf(chainID, contractAddr, tokenID);
+    }
+
+    ITenant tenant = ITenant(tenantAddress);
+
+    if (tenant.hasRole(RECORDER_ROLE, msg.sender)) {
+      tenant.record(reqID, amount, chainID, contractAddr, tokenID, nftOwner);
+    } else {
+      revert UnauthorizedAction();
+    }
+  }
+
   function setMaxPerTenant(uint256 _maxPerTenant) public onlyOwner {
     MAX_PER_TENANT = _maxPerTenant;
   }
@@ -168,5 +209,9 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function setTenantCreationFee(uint256 _fee) public onlyOwner {
     tenantCreationFee = _fee;
+  }
+
+  function setOwnershipManager(address _ownershipManager) external onlyOwner {
+    ownershipManager = _ownershipManager;
   }
 }

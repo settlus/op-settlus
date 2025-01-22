@@ -3,6 +3,7 @@ import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
 import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash, zeroAddress } from 'viem'
 import { nonMintableFixture } from './utils'
+import { deployer } from '../scripts/client'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -131,7 +132,7 @@ describe('Tenant', function () {
     const amount1 = BigInt(100)
     const tokenID = BigInt(0)
 
-    await mintableTenant.write.record([reqID1, amount1, chainId, nft.address, tokenID], {
+    await tenantManager.write.record([mintableTenantAddress!, reqID1, amount1, chainId, nft.address, tokenID], {
       account: tenantOwner.account,
     })
 
@@ -151,7 +152,8 @@ describe('Tenant', function () {
     const reqID2 = 'reqId2'
     const amount2 = BigInt(200)
 
-    await mintableTenant.write.record([reqID2, amount2, chainId, nft.address, tokenID], {
+
+    await tenantManager.write.record([mintableTenantAddress!, reqID2, amount2, chainId, nft.address, tokenID], {
       account: tenantOwner.account,
     })
 
@@ -219,7 +221,9 @@ describe('Tenant', function () {
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
-    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     const utxr = await tenant.read.getUtxrByReqID([reqID])
 
@@ -298,7 +302,9 @@ describe('Tenant', function () {
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
-    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine', [])
@@ -339,9 +345,15 @@ describe('Tenant', function () {
     const amount2 = BigInt(150)
     const amount3 = BigInt(200)
 
-    await tenant.write.record([reqID1, amount1, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
-    await tenant.write.record([reqID2, amount2, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
-    await tenant.write.record([reqID3, amount3, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID1, amount1, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
+    await tenantManager.write.record([tenantAddress!, reqID2, amount2, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
+    await tenantManager.write.record([tenantAddress!, reqID3, amount3, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     await tenant.write.cancel([reqID2], { account: tenantOwner.account })
 
@@ -398,7 +410,9 @@ describe('Tenant', function () {
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
-    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     // Increase time by payoutPeriod to make the UTXR eligible for settlement
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod + BigInt(100))])
@@ -442,7 +456,9 @@ describe('Tenant', function () {
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
-    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     // Increase time by payoutPeriod to make the UTXR eligible for settlement
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod + BigInt(100))])
@@ -481,7 +497,9 @@ describe('Tenant', function () {
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
-    await tenant.write.record([reqID, amount, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
 
     // Increase time by payoutPeriod to make the UTXR eligible for settlement
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod + BigInt(100))])
@@ -491,6 +509,51 @@ describe('Tenant', function () {
 
     expect(await tenantMintable.read.balanceOf([tenantAddress!])).to.equal(BigInt(0))
     expect(await tenantMintable.read.balanceOf([nftOwner.account.address])).to.equal(amount)
+  })
+
+  it('should settle UTXRs (Tenant with Mintable currency), with pre-deployed Mintable contract', async function () {
+    const { deployer, tenantManager, tenantOwner, publicClient, mintable, nftOwner, nft } = await loadFixture(nonMintableFixture)
+
+    const initialNftOwnerBalance = await mintable.read.balanceOf([nftOwner.account.address])
+
+    const tx = await tenantManager.write.createTenant(
+      ['Settle Tenant', 2, mintable.address, payoutPeriod],
+      {
+        account: tenantOwner.account,
+        value: tenantCreationFee,
+      }
+    )
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const logs = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+    const tenantAddress = logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const reqID = 'reqId1'
+    const amount = BigInt(100)
+
+    await tenantManager.write.record([tenantAddress!, reqID, amount, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
+
+    // Increase time by payoutPeriod to make the UTXR eligible for settlement
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod + BigInt(100))])
+    await hre.network.provider.send('evm_mine', [])
+
+    const tx2 = await tenantManager.write.settleAll({
+      account: deployer.account,
+    })
+
+    const receipt2 = await publicClient.waitForTransactionReceipt({ hash: tx2 })
+    const logs2 = parseEventLogs({
+      logs: receipt2.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    })
+    const g = logs2.find((log) => log.eventName === 'SettleFailed')?.args.tenantAddress
+    console.log(g)
+
+    expect(await mintable.read.balanceOf([nftOwner.account.address])).to.equal(initialNftOwnerBalance + amount)
   })
 
   it('should settle eligible UTXRs and leave ineligible ones (Tenant with Mintable contract)', async function () {
@@ -533,15 +596,21 @@ describe('Tenant', function () {
     const amount3 = BigInt(150)
 
     // Record three UTXRs with different timestamps
-    await tenant.write.record([reqID1, amount1, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID1, amount1, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))])
     await hre.network.provider.send('evm_mine', []) // Half of payoutPeriod
 
-    await tenant.write.record([reqID2, amount2, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID2, amount2, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))])
     await hre.network.provider.send('evm_mine', []) // Full payoutPeriod for reqID1
 
-    await tenant.write.record([reqID3, amount3, chainId, nft.address, BigInt(0)], { account: tenantOwner.account })
+    await tenantManager.write.record([tenantAddress!, reqID3, amount3, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner.account,
+    })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))])
     await hre.network.provider.send('evm_mine', []) // Full payoutPeriod for reqID2
 
@@ -594,11 +663,15 @@ describe('Tenant', function () {
     const reqID2 = 'reqId2'
     const amount2 = BigInt(200)
 
-    await tenant1.write.record([reqID1, amount1, chainId, nft.address, BigInt(0)], { account: tenantOwner1.account })
+    await tenantManager.write.record([tenant1Address!, reqID2, amount2, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner1.account,
+    })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))])
     await hre.network.provider.send('evm_mine', [])
 
-    await tenant2.write.record([reqID2, amount2, chainId, nft.address, BigInt(0)], { account: tenantOwner2.account })
+    await tenantManager.write.record([tenant2Address!, reqID1, amount1, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner2.account,
+    })
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod / BigInt(2))])
     await hre.network.provider.send('evm_mine', [])
 
