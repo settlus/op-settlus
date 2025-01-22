@@ -25,7 +25,7 @@ async function main() {
   const nftContractName = 'BasicERC721'
   const nftOwner = vars.get('NFT_OWNER')
   const tenantManagerName = 'TenantManager'
-
+3
   // Deploy the NFT contract
   const nftContract = await deployFactory(nftContractName, nftContractOwner.address)
 

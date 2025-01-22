@@ -5,6 +5,8 @@
   "scripts": {
     "hardhat:compile": "hardhat compile --force",
     "hardhat:test": "hardhat test --network hardhat",
+    "hardhat:deploy": "npx hardhat run scripts/deploy.ts --network settlus",
+    "hardhat:single-tenant": "npx hardhat run scripts/singleTenant.ts --network settlus",
     "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts' 'scripts/**/*.ts'",
     "clean": "rm -rf cache out",
     "build": "forge build",
@@ -26,15 +28,16 @@
     "@types/chai": "^4.0.0",
     "chai": "4.3.7",
     "ethers": "^6.13.4",
-    "hardhat": "^2.22.15",
     "forge-std": "github:foundry-rs/forge-std#v1.8.1",
+    "hardhat": "^2.22.15",
     "prettier": "^3.0.0",
-    "solhint": "^3.6.2",
     "prettier-plugin-solidity": "^1.4.1",
+    "solhint": "^3.6.2",
     "typescript": "^5.0.0",
     "viem": "2.21.35"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.731.1",
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0"
   }

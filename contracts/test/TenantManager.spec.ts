@@ -80,10 +80,9 @@ describe('TenantManager Test', function () {
       abi: hre.artifacts.readArtifactSync('TenantManager').abi,
     })
 
-    // const removeTx = await tenantManager.write.removeTenant([tenantName], {
+    // expect(await tenantManager.write.removeTenant([tenantName], {
     //   account: nftOwner.account,
-    // })
-    // expect(removeTx).to.be.revertedWith('Only owner can remove tenant')
+    // })).to.be.revertedWith('Only owner can remove tenant')
   })
 
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
@@ -198,11 +197,11 @@ describe('TenantManager Test', function () {
     const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500)
 
-    await tenant1.write.record([reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
+    await tenantManager.write.record([tenant1Address!, reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner1.account,
     })
 
-    await tenant2.write.record([reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
+    await tenantManager.write.record([tenant2Address!, reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner2.account,
     })
 
@@ -254,18 +253,15 @@ describe('TenantManager Test', function () {
       abi: hre.artifacts.readArtifactSync('TenantManager').abi,
     }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
-    const tenant1 = await hre.viem.getContractAt('Tenant', tenant1Address!)
-    const tenant2 = await hre.viem.getContractAt('Tenant', tenant2Address!)
-
     const reqID1 = 'reqId1'
     const reqID2 = 'reqId2'
     const amountToSettle = BigInt(500)
 
-    await tenant1.write.record([reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
+    await tenantManager.write.record([tenant1Address!, reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner1.account,
     })
 
-    await tenant2.write.record([reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
+    await tenantManager.write.record([tenant2Address!, reqID2, amountToSettle, chainId, nft.address, BigInt(0)], {
       account: tenantOwner2.account,
     })
 
@@ -285,6 +281,31 @@ describe('TenantManager Test', function () {
 
     check = await tenantManager.read.checkNeedSettlement()
     expect(check).to.equal(false)
+  })
+
+  it('should failed to record with wrong recorder', async function () {
+    const { tenantManager, deployer, publicClient, nft } = await loadFixture(mintableFixture)
+    const [tenantOwner1 , tenantOwner2] = await hre.viem.getWalletClients()
+
+    // Create tenants using the Mintables
+    const tx1 = await tenantManager.write.createTenantWithMintableContract(
+      ['Tenant1', 2, payoutPeriod, 'MintableOne', 'MTB'],
+      {
+        account: tenantOwner1.account,
+        value: tenantCreationFee,
+      }
+    )
+    const tenant1Address = parseEventLogs({
+      logs: (await publicClient.waitForTransactionReceipt({ hash: tx1 })).logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    const reqID1 = 'reqId1'
+    const amountToSettle = BigInt(500)
+
+    // expect(await tenantManager.write.record([tenant1Address!, reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
+    //   account: tenantOwner2.account,
+    // })).to.be.revertedWith('Only tenant owner can record')
   })
 
   it('should settle only 5 records(MAX_PER_TENANT) per each tenant by settleAll', async function () {
@@ -328,11 +349,11 @@ describe('TenantManager Test', function () {
     const amountToSettle = BigInt(1)
 
     for (let i = 0; i < recordNumber; i++) {
-      await tenant1.write.record([reqID1 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
+      await tenantManager.write.record([tenant1Address!, reqID1 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
         account: tenantOwner1.account,
       })
-
-      await tenant2.write.record([reqID2 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
+      
+      await tenantManager.write.record([tenant2Address!, reqID2 + i, amountToSettle, chainId, nft.address, BigInt(0)], {
         account: tenantOwner2.account,
       })
     }
