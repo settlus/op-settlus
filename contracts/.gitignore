@@ -1,0 +1,33 @@
+# directories
+cache
+coverage
+node_modules
+out
+.DS_Store
+
+# env files
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
+
+# Hardhat Ignition default folder for deployments against a local node
+ignition/deployments/chain-31337
+/scripts/factory-address.json
+
+# broadcasts
+!broadcast
+broadcast/*
+broadcast/*/31337/
+
+# ide
+.idea

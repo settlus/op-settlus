@@ -1,0 +1,70 @@
+name: Contract Test
+on:
+  push:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contract-test.yaml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/contract-test.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
+
+      - name: "Install the Node.js dependencies"
+        working-directory: ./contracts
+        run: bun install
+
+      - name: "Build the contracts and print their size"
+        working-directory: ./contracts
+        run: forge build --sizes
+
+      - name: "Add build summary"
+        working-directory: ./contracts
+        run: |
+          echo "## Build result" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+
+  test:
+    needs: ["build"]
+    runs-on: ubuntu-latest
+    env:
+      ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
+      NFT_OWNER: ${{ vars.NFT_OWNER }}
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+      ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+
+      - name: Install Dependencies
+        working-directory: ./contracts
+        run: bun install
+
+      - name: "Show the Foundry config"
+        working-directory: ./contracts
+        run: forge config
+
+      - name: Set Hardhat Variables
+        working-directory: ./contracts
+        run: |
+          npx hardhat vars set ENDPOINT_URL "${{ vars.ENDPOINT_URL }}"
+          npx hardhat vars set PRIVATE_KEY "${{ secrets.PRIVATE_KEY }}"
+          npx hardhat vars set ALCHEMY_KEY "${{ secrets.ALCHEMY_KEY }}"
+
+      - name: Run Tests
+        working-directory: ./contracts
+        run: forge test
