@@ -37,10 +37,10 @@ describe('TenantManager Test', function () {
   it('should failed to create a Tenant contract with wrong tenant creation fee', async function () {
     const { tenantManager, tenantOwner, publicClient } = await loadFixture(mintableFixture)
 
-    //  expect(await tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
-    //     account: tenantOwner.account,
-    //     value: tenantCreationFee + BigInt('200'),
-    //   })).to.be.revertedWith('Need exact tenant creation fee')
+     await expect(tenantManager.write.createTenant([tenantName, 0, defaultAddress, payoutPeriod], {
+        account: tenantOwner.account,
+        value: tenantCreationFee + BigInt('200'),
+      })).to.be.rejectedWith('Need exact tenant creation fee')
   })
 
   it('should remove a Tenant contract via proxy', async function () {
@@ -80,9 +80,9 @@ describe('TenantManager Test', function () {
       abi: hre.artifacts.readArtifactSync('TenantManager').abi,
     })
 
-    // expect(await tenantManager.write.removeTenant([tenantName], {
-    //   account: nftOwner.account,
-    // })).to.be.revertedWith('Only owner can remove tenant')
+    await expect(tenantManager.write.removeTenant([tenantName], {
+      account: nftOwner.account,
+    })).to.be.rejectedWith('UnauthorizedAction()')
   })
 
   it('should deploy three Tenants with different currency types, without pre-deployed token contracts via proxy', async function () {
@@ -303,9 +303,9 @@ describe('TenantManager Test', function () {
     const reqID1 = 'reqId1'
     const amountToSettle = BigInt(500)
 
-    // expect(await tenantManager.write.record([tenant1Address!, reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
-    //   account: tenantOwner2.account,
-    // })).to.be.revertedWith('Only tenant owner can record')
+    await expect(tenantManager.write.record([tenant1Address!, reqID1, amountToSettle, chainId, nft.address, BigInt(0)], {
+      account: tenantOwner2.account,
+    })).to.be.rejectedWith('UnauthorizedAction')
   })
 
   it('should settle only 5 records(MAX_PER_TENANT) per each tenant by settleAll', async function () {
@@ -399,5 +399,63 @@ describe('TenantManager Test', function () {
     expect(recipientBalanceAtTenant2).to.equal(MAX_PER_TENANT * BigInt(2))
     expect(t1NextSettleIdx).to.equal(MAX_PER_TENANT * BigInt(2))
     expect(t2NextSettleIdx).to.equal(MAX_PER_TENANT * BigInt(2))
+  })
+
+  it('should properly manage SETTLER_ROLE permissions', async function () {
+    const { tenantManager, deployer, settler } = await loadFixture(mintableFixture)
+
+    const SETTLER_ROLE = keccak256(encodePacked(['string'], ['SETTLER_ROLE']))
+    
+    expect(await tenantManager.read.hasRole([SETTLER_ROLE, deployer.account.address])).to.be.true
+    
+    expect(await tenantManager.read.hasRole([SETTLER_ROLE, settler.account.address])).to.be.false
+    
+    await tenantManager.write.grantRole([SETTLER_ROLE, settler.account.address], {
+      account: deployer.account,
+    })
+    expect(await tenantManager.read.hasRole([SETTLER_ROLE, settler.account.address])).to.be.true
+  })
+
+  it('should only allow SETTLER_ROLE to call settleAll', async function () {
+    const { tenantManager, deployer, settler, tenantOwner, publicClient, nft } = await loadFixture(mintableFixture)
+
+    const tx = await tenantManager.write.createTenantWithMintableContract(
+      ['TestTenant', 2, payoutPeriod, 'TestToken', 'TST'],
+      {
+        account: tenantOwner.account,
+        value: tenantCreationFee,
+      }
+    )
+    
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: tx })
+    const tenantAddress = parseEventLogs({
+      logs: receipt.logs,
+      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
+    }).find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
+
+    await tenantManager.write.record(
+      [tenantAddress!, 'testReqId', BigInt(100), chainId, nft.address, BigInt(0)],
+      { account: tenantOwner.account }
+    )
+
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
+    await hre.network.provider.send('evm_mine', [])
+
+    await expect(
+      tenantManager.write.settleAll({
+        account: settler.account,
+      })
+    ).to.be.rejectedWith('AccessControlUnauthorizedAccount')
+
+    const SETTLER_ROLE = keccak256(encodePacked(['string'], ['SETTLER_ROLE']))
+    await tenantManager.write.grantRole([SETTLER_ROLE, settler.account.address], {
+      account: deployer.account,
+    })
+
+    await expect(
+      tenantManager.write.settleAll({
+        account: settler.account,
+      })
+    ).to.not.be.rejected
   })
 })

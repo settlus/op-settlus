@@ -1,9 +1,8 @@
 import { expect } from 'chai'
 import hre from 'hardhat'
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers'
-import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash, zeroAddress } from 'viem'
-import { nonMintableFixture } from './utils'
-import { deployer } from '../scripts/client'
+import { parseEventLogs, getAddress, parseEther, keccak256, toBytes, zeroHash, zeroAddress, encodePacked } from 'viem'
+import { nonMintableFixture, mintableFixture } from './utils'
 
 describe('Tenant', function () {
   const defaultAddress = '0x0000000000000000000000000000000000000000'
@@ -235,7 +234,7 @@ describe('Tenant', function () {
   })
 
   it('should only allow owner to control treasury funds', async function () {
-    const { tenantManager, tenantOwner, publicClient } = await loadFixture(nonMintableFixture)
+    const { tenantManager, tenantOwner, publicClient, nftOwner } = await loadFixture(nonMintableFixture)
 
     const tx = await tenantManager.write.createTenantWithMintableContract(
       ['Tenant Controlled ERC20', 2, payoutPeriod, TokenName, TokenSymbol],
@@ -253,10 +252,9 @@ describe('Tenant', function () {
 
     const tenant = await hre.viem.getContractAt('Tenant', tenantAddress!)
 
-    // TODO: related issue? https://github.com/NomicFoundation/hardhat/issues/4235
-    // await expect(tenant.write.setCurrencyAddress([defaultAddress], {
-    //   account: nftOwner.account,
-    // })).to.be.revertedWith('Not authorized')
+    await expect(tenant.write.setCurrencyAddress([defaultAddress], {
+      account: nftOwner.account,
+    })).to.be.rejectedWith('Not authorized')
   })
 
   it('should set payout period', async function () {
@@ -309,10 +307,9 @@ describe('Tenant', function () {
     await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine', [])
 
-    // TODO: related issue? https://github.com/NomicFoundation/hardhat/issues/4235
-    // await expect(tenant.write.cancel([reqID], { account: tenantOwner.account })).to.be.revertedWith(
-    //   'Cannot cancel, UTXR past payout period'
-    // )
+    await expect(tenant.write.cancel([reqID], { account: tenantOwner.account })).to.be.rejectedWith(
+      'Cannot cancel, UTXR past payout period'
+    )
 
     const utxr = await tenant.read.utxrs([BigInt(0)])
     expect(utxr[7]).to.equal(0) // 7th index is RecordStatus
@@ -512,7 +509,7 @@ describe('Tenant', function () {
   })
 
   it('should settle UTXRs (Tenant with Mintable currency), with pre-deployed Mintable contract', async function () {
-    const { deployer, tenantManager, tenantOwner, publicClient, mintable, nftOwner, nft } = await loadFixture(nonMintableFixture)
+    const { tenantManager, deployer, tenantOwner, publicClient, mintable, nftOwner, nft } = await loadFixture(mintableFixture)
 
     const initialNftOwnerBalance = await mintable.read.balanceOf([nftOwner.account.address])
 
@@ -530,6 +527,13 @@ describe('Tenant', function () {
     })
     const tenantAddress = logs.find((log) => log.eventName === 'TenantCreated')?.args.tenantAddress
 
+    await mintable.write.grantRole([
+      zeroHash, 
+      tenantAddress!
+    ], {
+      account: tenantOwner.account,
+    })
+
     const reqID = 'reqId1'
     const amount = BigInt(100)
 
@@ -537,21 +541,15 @@ describe('Tenant', function () {
       account: tenantOwner.account,
     })
 
-    // Increase time by payoutPeriod to make the UTXR eligible for settlement
-    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod + BigInt(100))])
+    await hre.network.provider.send('evm_increaseTime', [Number(payoutPeriod)])
     await hre.network.provider.send('evm_mine', [])
 
-    const tx2 = await tenantManager.write.settleAll({
+    const SETTLER_ROLE = keccak256(encodePacked(['string'], ['SETTLER_ROLE']))
+    expect(await tenantManager.read.hasRole([SETTLER_ROLE, deployer.account.address])).to.be.true
+
+    await tenantManager.write.settleAll({
       account: deployer.account,
     })
-
-    const receipt2 = await publicClient.waitForTransactionReceipt({ hash: tx2 })
-    const logs2 = parseEventLogs({
-      logs: receipt2.logs,
-      abi: hre.artifacts.readArtifactSync('TenantManager').abi,
-    })
-    const g = logs2.find((log) => log.eventName === 'SettleFailed')?.args.tenantAddress
-    console.log(g)
 
     expect(await mintable.read.balanceOf([nftOwner.account.address])).to.equal(initialNftOwnerBalance + amount)
   })

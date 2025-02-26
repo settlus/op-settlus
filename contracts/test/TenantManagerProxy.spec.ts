@@ -112,11 +112,11 @@ describe('TenantManagerProxy test', function () {
       client: { wallet: deployer },
     })
 
-    // await expect(
-    //   tenantManager.write.upgradeToAndCall([upgradedTenantManagerImplementation.address, '0x'], {
-    //     account: anonymous.account,
-    //   })
-    // ).to.be.revertedWith(`OwnableUnauthorizedAccount("${getAddress(anonymous.account.address)}")`)
+    await expect(
+      tenantManager.write.upgradeToAndCall([upgradedTenantManagerImplementation.address, '0x'], {
+        account: anonymous.account,
+      })
+    ).to.be.rejectedWith(`OwnableUnauthorizedAccount("${getAddress(anonymous.account.address)}")`)
 
     await tenantManager.write.upgradeToAndCall([upgradedTenantManagerImplementation.address, '0x'], {
       account: deployer.account,

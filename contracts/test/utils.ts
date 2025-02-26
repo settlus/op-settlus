@@ -12,7 +12,7 @@ export function nonMintableFixture() {
 }
 
 async function deployTenantManagerProxyFixture({ isMintable }: { isMintable: boolean }) {
-  const [deployer, tenantOwner, erc20Owner, nftOwner, newNftOwner] = await hre.viem.getWalletClients()
+  const [deployer, tenantOwner, erc20Owner, nftOwner, newNftOwner, settler] = await hre.viem.getWalletClients()
   const publicClient = await hre.viem.getPublicClient()
 
   const tenantManagerImplementation = await hre.viem.deployContract('TenantManager', [], {
@@ -66,5 +66,6 @@ async function deployTenantManagerProxyFixture({ isMintable }: { isMintable: boo
     mintable,
     nft,
     erc20Owner,
+    settler,
   }
 }
