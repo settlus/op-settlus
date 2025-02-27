@@ -9,6 +9,12 @@ on:
       - "contracts/**"
       - ".github/workflows/contract-test.yaml"
 
+env:
+  ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
+  NFT_OWNER: ${{ vars.NFT_OWNER }}
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+  ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
+
 permissions:
   contents: read
 
@@ -18,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
-      - uses: oven-sh/setup-bun@v2
       - uses: oven-sh/setup-bun@v2
 
       - name: "Install the Node.js dependencies"
@@ -42,12 +47,6 @@ jobs:
   test:
     needs: ["build"]
     runs-on: ubuntu-latest
-    env:
-      ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
-      NFT_OWNER: ${{ vars.NFT_OWNER }}
-      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-      ALCHEMY_KEY: ${{ secrets.ALCHEMY_KEY }}
-
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
