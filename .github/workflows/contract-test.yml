@@ -30,6 +30,13 @@ jobs:
         working-directory: ./contracts
         run: bun install
       
+      - name: Set Hardhat Variables
+        working-directory: ./contracts
+        run: |
+          npx hardhat vars set ENDPOINT_URL "${{ vars.ENDPOINT_URL }}"
+          npx hardhat vars set PRIVATE_KEY "${{ secrets.PRIVATE_KEY }}"
+          npx hardhat vars set ALCHEMY_KEY "${{ secrets.ALCHEMY_KEY }}"
+      
       - name: "Build the contracts"
         working-directory: ./contracts
         run: npx hardhat compile --force
@@ -60,13 +67,6 @@ jobs:
       - name: "Show the Foundry config"
         working-directory: ./contracts
         run: forge config
-
-      - name: Set Hardhat Variables
-        working-directory: ./contracts
-        run: |
-          npx hardhat vars set ENDPOINT_URL "${{ vars.ENDPOINT_URL }}"
-          npx hardhat vars set PRIVATE_KEY "${{ secrets.PRIVATE_KEY }}"
-          npx hardhat vars set ALCHEMY_KEY "${{ secrets.ALCHEMY_KEY }}"
 
       - name: Run Tests
         working-directory: ./contracts
