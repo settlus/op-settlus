@@ -3,6 +3,7 @@ pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./BasicERC20.sol";
 import "./ERC20NonTransferable.sol";
@@ -28,7 +29,7 @@ interface IOwnershipManager {
   function ownerOf(uint256 chainId, address contractAddr, uint256 tokenId) external view returns (address);
 }
 
-contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract TenantManager is Initializable, OwnableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
   uint256 public MAX_PER_TENANT;
   mapping(bytes32 => address) public tenants;
   address[] public tenantAddresses;
@@ -37,6 +38,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   // to check the role in tenant
   bytes32 public constant RECORDER_ROLE = keccak256("RECORDER_ROLE");
+  bytes32 public constant SETTLER_ROLE = keccak256("SETTLER_ROLE");
 
   event TenantCreated(
     address tenantAddress,
@@ -78,7 +80,12 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
   function initialize(address owner) public initializer {
     __Ownable_init(owner);
+    __AccessControl_init();
     __UUPSUpgradeable_init();
+    
+    _grantRole(DEFAULT_ADMIN_ROLE, owner);
+    _grantRole(SETTLER_ROLE, owner);
+    
     // initialize with 10
     setMaxPerTenant(10);
     // initialize with 0.1 ether
@@ -126,7 +133,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     return address(newTenant);
   }
 
-  function settleAll() public onlyOwner {
+  function settleAll() public onlyRole(SETTLER_ROLE) {
     uint256 tenantNumber = tenantAddresses.length;
     for (uint256 i = 0; i < tenantNumber; i++) {
       try ITenant(tenantAddresses[i]).settle(MAX_PER_TENANT) {
