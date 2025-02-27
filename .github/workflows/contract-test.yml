@@ -24,16 +24,20 @@ jobs:
       - name: "Install the Node.js dependencies"
         working-directory: ./contracts
         run: bun install
-
-      - name: "Build the contracts and print their size"
+      
+      - name: "Build the contracts"
         working-directory: ./contracts
-        run: forge build --sizes
+        run: npx hardhat compile --force
 
-      - name: "Add build summary"
-        working-directory: ./contracts
-        run: |
-          echo "## Build result" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
+      # - name: "Build the contracts and print their size"
+      #   working-directory: ./contracts
+      #   run: forge build --sizes
+
+      # - name: "Add build summary"
+      #   working-directory: ./contracts
+      #   run: |
+      #     echo "## Build result" >> $GITHUB_STEP_SUMMARY
+      #     echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   test:
     needs: ["build"]
@@ -67,4 +71,4 @@ jobs:
 
       - name: Run Tests
         working-directory: ./contracts
-        run: forge test
+        run: npx hardhat test --network hardhat
