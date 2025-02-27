@@ -35,6 +35,14 @@ func Start(ctx context.Context) error {
 	var lastBlockNum *big.Int
 	var lastProcessedNonce uint64
 
+	initialNonce, err := client.PendingNonceAt(ctx, fromAddress)
+	if err != nil {
+		log.Errorf("Failed to fetch initial nonce: %v", err)
+		return err
+	}
+	lastProcessedNonce = initialNonce
+	log.Infof("Starting with initial nonce: %v", initialNonce)
+
 	ticker := time.NewTicker(time.Duration(GetPollingInterval()) * time.Millisecond)
 	defer ticker.Stop()
 
@@ -58,22 +66,23 @@ func Start(ctx context.Context) error {
 			log.Infof("Processing new block: %v", header.Number.String())
 
 			go func() {
-				nonce, err := client.PendingNonceAt(ctx, fromAddress)
+				currentNonce, err := client.PendingNonceAt(ctx, fromAddress)
 				if err != nil {
 					log.Errorf("Failed to fetch nonce: %v", err)
 					return
 				}
 
-				if nonce == lastProcessedNonce {
-					log.Warnf("Duplicate nonce detected (%v). Skipping transaction for this block.", nonce)
+				if currentNonce != 0 && currentNonce <= lastProcessedNonce {
+					log.Debugf("Current nonce (%v) <= last processed nonce (%v). Waiting for next block.",
+						currentNonce, lastProcessedNonce)
 					return
 				}
 
-				tx, msg, err := callSettleAll(ctx, client, signer, nonce)
+				tx, msg, err := callSettleAll(ctx, client, signer, currentNonce)
 				if err != nil {
 					log.Errorf("Failed to call settleAll: %v", err)
 				} else if tx != nil {
-					lastProcessedNonce = tx.Nonce() // Update the last processed nonce
+					lastProcessedNonce = currentNonce
 					txChecker.CheckTransaction(&TxCheckMsg{tx, &msg})
 					log.Infof("Transaction successfully sent with nonce %v", tx.Nonce())
 				}
@@ -160,7 +169,6 @@ func callSettleAll(ctx context.Context, client *ethclient.Client, signer Signer,
 	log.Infof("Transaction sent successfully: %s", signedTx.Hash().Hex())
 	return signedTx, msg, nil
 }
-
 
 func checkNeedSettlement(ctx context.Context, client *ethclient.Client, tenantManagerABI *abi.ABI, contractAddress common.Address) (bool, error) {
 	getSettlementScheduleData, err := tenantManagerABI.Pack("checkNeedSettlement")
