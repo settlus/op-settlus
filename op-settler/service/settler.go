@@ -35,7 +35,6 @@ func Start(ctx context.Context) error {
 	var lastBlockNum *big.Int
 	var lastProcessedNonce uint64
 
-	// 초기 nonce 값을 가져옴
 	initialNonce, err := client.PendingNonceAt(ctx, fromAddress)
 	if err != nil {
 		log.Errorf("Failed to fetch initial nonce: %v", err)
