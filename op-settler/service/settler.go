@@ -28,20 +28,19 @@ func Start(ctx context.Context) error {
 	signer := NewSigner(ctx)
 	fromAddress := signer.PublicAddress()
 
+	currentNonce, err := client.PendingNonceAt(ctx, fromAddress)
+	if err != nil {
+		log.Errorf("Failed to fetch initial nonce: %v", err)
+		return err
+	}
+
+	lastProcessedNonce := currentNonce - 1
+
 	txChecker := NewTxChecker(client)
 	txChecker.Start(ctx)
 	defer txChecker.Shutdown()
 
 	var lastBlockNum *big.Int
-	var lastProcessedNonce uint64
-
-	initialNonce, err := client.PendingNonceAt(ctx, fromAddress)
-	if err != nil {
-		log.Errorf("Failed to fetch initial nonce: %v", err)
-		return err
-	}
-	lastProcessedNonce = initialNonce
-	log.Infof("Starting with initial nonce: %v", initialNonce)
 
 	ticker := time.NewTicker(time.Duration(GetPollingInterval()) * time.Millisecond)
 	defer ticker.Stop()
@@ -66,23 +65,22 @@ func Start(ctx context.Context) error {
 			log.Infof("Processing new block: %v", header.Number.String())
 
 			go func() {
-				currentNonce, err := client.PendingNonceAt(ctx, fromAddress)
+				nonce, err := client.PendingNonceAt(ctx, fromAddress)
 				if err != nil {
 					log.Errorf("Failed to fetch nonce: %v", err)
 					return
 				}
 
-				if currentNonce != 0 && currentNonce <= lastProcessedNonce {
-					log.Debugf("Current nonce (%v) <= last processed nonce (%v). Waiting for next block.",
-						currentNonce, lastProcessedNonce)
+				if nonce == lastProcessedNonce {
+					log.Warnf("Duplicate nonce detected (%v). Skipping transaction for this block.", nonce)
 					return
 				}
 
-				tx, msg, err := callSettleAll(ctx, client, signer, currentNonce)
+				tx, msg, err := callSettleAll(ctx, client, signer, nonce)
 				if err != nil {
 					log.Errorf("Failed to call settleAll: %v", err)
 				} else if tx != nil {
-					lastProcessedNonce = currentNonce
+					lastProcessedNonce = tx.Nonce() // Update the last processed nonce
 					txChecker.CheckTransaction(&TxCheckMsg{tx, &msg})
 					log.Infof("Transaction successfully sent with nonce %v", tx.Nonce())
 				}

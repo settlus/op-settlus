@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	endpoint     = "RPC_ENDPOINT"
-	privateKey   = "PRIVATE_KEY"
-	proxyAddress = "PROXY_ADDRESS"
-	kmsKeyID     = "KMS_KEY_ID"
-	signMode     = "SIGN_MODE"
+	endpoint        = "RPC_ENDPOINT"
+	privateKey      = "PRIVATE_KEY"
+	proxyAddress    = "PROXY_ADDRESS"
+	kmsKeyID        = "KMS_KEY_ID"
+	signMode        = "SIGN_MODE"
 	pollingInterval = "POLLING_INTERVAL"
 )
 
