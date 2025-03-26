@@ -21,23 +21,12 @@ async function main() {
   await hre.run('compile')
   console.log(`Compiling...`)
   const [deployer] = await hre.ethers.getSigners()
-  const nftContractOwner = deployer
-  const nftContractName = 'BasicERC721'
-  const nftOwner = vars.get('NFT_OWNER')
   const settlerAddress = vars.get('SETTLER_ADDRESS')
   const tenantManagerName = 'TenantManager'
 
   if (!settlerAddress) {
     throw new Error('SETTLER_ADDRESS not set in environment variables')
   }
-
-  // Deploy the NFT contract
-  const nftContract = await deployFactory(nftContractName, nftContractOwner.address)
-
-  // Mint an NFT to a specific address
-  const mintTx = await nftContract.safeMint(nftOwner)
-  await mintTx.wait()
-  console.log(`NFT minted to: ${nftOwner}`)
 
   // Deploy the TenantManager implementation and proxy
   const tenantManagerImplementation = await deployFactory(tenantManagerName)
@@ -63,7 +52,6 @@ async function main() {
   console.log(`SETTLER_ROLE granted to ${settlerAddress}`)
 
   const addresses = {
-    sampleNft: await nftContract.getAddress(),
     tenantManagerImplementation: await tenantManagerImplementation.getAddress(),
     tenantManagerProxy: await tenantManagerProxy.getAddress(),
   }

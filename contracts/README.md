@@ -49,10 +49,16 @@ forge coverage
 
 ### Deploy
 
-Deploy to Anvil:
-
 ```sh
-$ forge script script/Deploy.s.sol --broadcast --fork-url http://localhost:8545
+export PRIVATE_KEY=<your_private_key>
+export SETTLER_ADDRESS=<your_settler_address>
+
+# simulation only
+$ forge script scripts/Deploy.s.sol:Deploy --rpc-url <sepolia or mainnet> -vvvv
+
+# deploy
+$ forge script scripts/Deploy.s.sol:Deploy --rpc-url <sepolia or mainnet> --broadcast -vvvv
+
 ```
 
 ### Format

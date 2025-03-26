@@ -32,7 +32,7 @@ contract Tenant is AccessControl {
   event Cancelled(string indexed reqID);
   event RecorderAdded(address indexed recorder);
   event RecorderRemoved(address indexed recorder);
-
+  event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
   struct UTXR {
     string reqID;
     uint256 amount;
@@ -96,6 +96,17 @@ contract Tenant is AccessControl {
     require(!hasRole(DEFAULT_ADMIN_ROLE, recorder), "Cannot remove RECORDER_ROLE from master");
     revokeRole(RECORDER_ROLE, recorder);
     emit RecorderRemoved(recorder);
+  }
+
+  function transferAdmin(address newAdmin) public onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(newAdmin != address(0), "New admin cannot be zero address");
+    require(!hasRole(DEFAULT_ADMIN_ROLE, newAdmin), "Account already has admin role");
+
+    address previousAdmin = _msgSender();
+    grantRole(DEFAULT_ADMIN_ROLE, newAdmin);
+    renounceRole(DEFAULT_ADMIN_ROLE, previousAdmin);
+
+    emit AdminTransferred(previousAdmin, newAdmin);
   }
 
   function setCurrencyAddress(address _currencyAddress) external onlyManagerOrAdmin {

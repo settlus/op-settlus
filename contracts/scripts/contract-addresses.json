@@ -1,7 +1,4 @@
 {
-  "sampleNft": "0x1feA462D51A75947430357fBC78Eb53C0e544921",
-  "tenantManagerImplementation": "0x813fc79d9DF51B9B7a60ED9086c22b23c9D1c7E4",
-  "tenantManagerProxy": "0x4532D27eb0cF45dfe785D25A7DCd211Dd88a8767",
-  "alchemyTestnetTenantAddress": "0x313971e17c4CfA27e54b916CE451fAd3513a01ab",
-  "alchemyTestnetTenantName": "Tenant1lrrq"
+  "tenantManagerImplementation": "0x355273546b090e5194Bc5A396383579C9Cfc8E8c",
+  "tenantManagerProxy": "0xec23818794e6Adc333f2e2142BFd32c385867F53"
 }
