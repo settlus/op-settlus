@@ -8,7 +8,7 @@
   fuzz = { runs = 1_000 }
   gas_reports = ["*"]
   optimizer = true
-  optimizer_runs = 10_000
+  fs_permissions = [{ access = "read-write", path = "./scripts" }]
   out = "out"
   script = "script"
   solc = "0.8.25"
@@ -20,13 +20,13 @@
   verbosity = 4
 
 [etherscan]
-  mainnet = { key = "${API_KEY_ETHERSCAN}" }
-  sepolia = { key = "${API_KEY_ETHERSCAN}" }
+  mainnet = { key = "${ALCHEMY_API_KEY}" }
+  sepolia = { key = "${ALCHEMY_API_KEY}" }
 
 [fmt]
   bracket_spacing = true
   int_types = "long"
-  line_length = 120
+  line_length = 200
   multiline_func_header = "all"
   number_underscore = "thousands"
   quote_style = "double"
@@ -35,5 +35,5 @@
 
 [rpc_endpoints]
   localhost = "http://localhost:8545"
-  mainnet = "https://eth-mainnet.g.alchemy.com/v2/${API_KEY_ALCHEMY}"
-  sepolia = "https://sepolia.infura.io/v3/${API_KEY_INFURA}"
+  mainnet = "https://settlus-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
+  sepolia = "https://settlus-septestnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
