@@ -14,11 +14,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	DANGER_BALANCE_THRESHOLD   = "0.5"
-	BALANCE_DECREASE_THRESHOLD = "0.001"
-)
-
 type balanceState struct {
 	lastAlertBalance *big.Int
 	wasInDanger      bool
@@ -86,12 +81,12 @@ func checkBalance(ctx context.Context, client *ethclient.Client, signer Signer, 
 		return fmt.Errorf("failed to check balance: %v", err)
 	}
 
-	thresholdWei, err := ethToWei(DANGER_BALANCE_THRESHOLD)
+	thresholdWei, err := ethToWei(GetDangerBalanceThreshold())
 	if err != nil {
 		return err
 	}
 
-	changeThresholdWei, err := ethToWei(BALANCE_DECREASE_THRESHOLD)
+	changeThresholdWei, err := ethToWei(GetBalanceDecreaseThreshold())
 	if err != nil {
 		return err
 	}
@@ -115,7 +110,7 @@ func sendAlert(address common.Address, balance *big.Int, isDanger bool) error {
 		message = fmt.Sprintf("⚠️ Settler 지갑의 ETH 잔고가 위험 수준으로 내려갔습니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
 			address.Hex(),
 			formatBalance(balance),
-			DANGER_BALANCE_THRESHOLD)
+			GetDangerBalanceThreshold())
 		log.Warnf("sent danger alert: address=%s, balance=%s ETH",
 			address.Hex(),
 			formatBalance(balance))
@@ -123,7 +118,7 @@ func sendAlert(address common.Address, balance *big.Int, isDanger bool) error {
 		message = fmt.Sprintf("✅ Settler 지갑의 ETH 잔고가 회복되었습니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
 			address.Hex(),
 			formatBalance(balance),
-			DANGER_BALANCE_THRESHOLD)
+			GetDangerBalanceThreshold())
 		log.Infof("sent recovery alert: address=%s, balance=%s ETH",
 			address.Hex(),
 			formatBalance(balance))

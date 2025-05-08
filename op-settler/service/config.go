@@ -14,8 +14,10 @@ const (
 	proxyAddress    = "PROXY_ADDRESS"
 	kmsKeyID        = "KMS_KEY_ID"
 	signMode        = "SIGN_MODE"
-	pollingInterval = "POLLING_INTERVAL"
-	slackWebhookURL = "SLACK_WEBHOOK_URL"
+	pollingInterval        = "POLLING_INTERVAL"
+	slackWebhookURL        = "SLACK_WEBHOOK_URL"
+	DANGER_BALANCE_THRESHOLD   = "DANGER_BALANCE_THRESHOLD"
+	BALANCE_DECREASE_THRESHOLD = "BALANCE_DECREASE_THRESHOLD"
 )
 
 func init() {
@@ -61,6 +63,14 @@ func GetPollingInterval() int64 {
 		panic(fmt.Sprintf("failed to parse polling interval: %v", err))
 	}
 	return val
+}
+
+func GetDangerBalanceThreshold() string {
+	return getEnvOrPanic(DANGER_BALANCE_THRESHOLD)
+}
+
+func GetBalanceDecreaseThreshold() string {
+	return getEnvOrPanic(BALANCE_DECREASE_THRESHOLD)
 }
 
 func GetSlackWebhookURL() string {
