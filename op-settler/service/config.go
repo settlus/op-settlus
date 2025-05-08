@@ -15,6 +15,7 @@ const (
 	kmsKeyID        = "KMS_KEY_ID"
 	signMode        = "SIGN_MODE"
 	pollingInterval = "POLLING_INTERVAL"
+	slackWebhookURL = "SLACK_WEBHOOK_URL"
 )
 
 func init() {
@@ -60,6 +61,10 @@ func GetPollingInterval() int64 {
 		panic(fmt.Sprintf("failed to parse polling interval: %v", err))
 	}
 	return val
+}
+
+func GetSlackWebhookURL() string {
+	return getEnvOrPanic(slackWebhookURL)
 }
 
 func GetSignMode() string {

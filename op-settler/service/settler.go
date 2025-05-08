@@ -65,6 +65,12 @@ func Start(ctx context.Context) error {
 			log.Infof("Processing new block: %v", header.Number.String())
 
 			go func() {
+				if err := checkBalance(ctx, client, signer, header.Number); err != nil {
+					log.Errorf("잔고 체크 중 오류 발생: %v", err)
+				}
+			}()
+
+			go func() {
 				nonce, err := client.PendingNonceAt(ctx, fromAddress)
 				if err != nil {
 					log.Errorf("Failed to fetch nonce: %v", err)
