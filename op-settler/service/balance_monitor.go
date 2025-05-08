@@ -64,15 +64,16 @@ func ethToWei(ethAmount string) (*big.Int, error) {
 }
 
 func shouldSendAlert(currentBalance, lastAlertBalance *big.Int, wasInDanger bool, thresholdWei, changeThresholdWei *big.Int) bool {
-	if lastAlertBalance == nil {
-		return currentBalance.Cmp(thresholdWei) < 0
+	isDanger := currentBalance.Cmp(thresholdWei) < 0
+	if isDanger != wasInDanger {
+		return true
 	}
 
-	if currentBalance.Cmp(thresholdWei) < 0 {
-		return !wasInDanger || new(big.Int).Sub(lastAlertBalance, currentBalance).Cmp(changeThresholdWei) >= 0
+	if isDanger && lastAlertBalance != nil {
+		return new(big.Int).Sub(lastAlertBalance, currentBalance).Cmp(changeThresholdWei) >= 0
 	}
 
-	return wasInDanger
+	return false
 }
 
 func checkBalance(ctx context.Context, client *ethclient.Client, signer Signer, currentBlock *big.Int) error {
@@ -111,21 +112,21 @@ func checkBalance(ctx context.Context, client *ethclient.Client, signer Signer, 
 func sendAlert(address common.Address, balance *big.Int, isDanger bool) error {
 	var message string
 	if isDanger {
-		message = fmt.Sprintf("⚠️ Settler 지갑의 ETH 잔고가 위험 수준 이하입니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
+		message = fmt.Sprintf("⚠️ Settler 지갑의 ETH 잔고가 위험 수준으로 내려갔습니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
 			address.Hex(),
-			new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt64(1e18)).Text('f', 6),
+			formatBalance(balance),
 			DANGER_BALANCE_THRESHOLD)
 		log.Warnf("sent danger alert: address=%s, balance=%s ETH",
 			address.Hex(),
-			new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt64(1e18)).Text('f', 6))
+			formatBalance(balance))
 	} else {
-		message = fmt.Sprintf("✅ Settler 지갑의 ETH 잔고가 위험 수준에서 회복되었습니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
+		message = fmt.Sprintf("✅ Settler 지갑의 ETH 잔고가 회복되었습니다.\n주소: %s\n현재 Settler 계정 잔고: %s ETH\n위험 수준: %s ETH",
 			address.Hex(),
-			new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt64(1e18)).Text('f', 6),
+			formatBalance(balance),
 			DANGER_BALANCE_THRESHOLD)
 		log.Infof("sent recovery alert: address=%s, balance=%s ETH",
 			address.Hex(),
-			new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt64(1e18)).Text('f', 6))
+			formatBalance(balance))
 	}
 
 	if err := sendSlackNotification(GetSlackWebhookURL(), message); err != nil {
@@ -134,4 +135,8 @@ func sendAlert(address common.Address, balance *big.Int, isDanger bool) error {
 	}
 
 	return nil
+}
+
+func formatBalance(balance *big.Int) string {
+	return new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt64(1e18)).Text('f', 6)
 }

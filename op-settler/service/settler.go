@@ -66,7 +66,7 @@ func Start(ctx context.Context) error {
 
 			go func() {
 				if err := checkBalance(ctx, client, signer, header.Number); err != nil {
-					log.Errorf("잔고 체크 중 오류 발생: %v", err)
+					log.Errorf("error checking balance: %v", err)
 				}
 			}()
 
