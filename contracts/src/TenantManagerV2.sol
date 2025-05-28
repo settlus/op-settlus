@@ -6,7 +6,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./BasicERC20.sol";
-import "./ERC20NonTransferable.sol";
+import "./ERC20Transferable.sol";
 import "./Tenant.sol";
 import "./TenantFactory.sol";
 
@@ -152,7 +152,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
             newTenantAddress = address(newTenant);
         }
 
-        ERC20NonTransferable newMintableContract = new ERC20NonTransferable(newTenantAddress, tokenName, tokenSymbol);
+        ERC20Transferable newMintableContract = new ERC20Transferable(newTenantAddress, tokenName, tokenSymbol);
         
         ITenant(newTenantAddress).setCurrencyAddress(address(newMintableContract));
         

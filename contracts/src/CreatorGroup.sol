@@ -51,7 +51,7 @@ contract CreatorGroup is Ownable, AccessControl {
         }
         require(size == 0, "Target must be an EOA");
 
-        IERC20(token).transferFrom(address(this), target, amount);
+        IERC20(token).transfer(target, amount);
         emit Transfer(token, target, amount);
     }
 
