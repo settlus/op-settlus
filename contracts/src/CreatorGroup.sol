@@ -2,10 +2,11 @@
 pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract WorldTeam is Ownable, AccessControl {
+contract CreatorGroup is Ownable, AccessControl {
     string public name;
     mapping(address => bool) public isMember;
     address[] public members;
@@ -17,6 +18,7 @@ contract WorldTeam is Ownable, AccessControl {
     event AdminRemoved(address indexed admin);
     event MemberAdded(address indexed member);
     event MemberRemoved(address indexed member);
+    event Transfer(address indexed token, address indexed target, uint256 amount);
 
     modifier onlyAdminOrOwner() {
         require(hasRole(ADMIN_ROLE, msg.sender) || msg.sender == owner(), "Not admin or owner");
@@ -35,6 +37,22 @@ contract WorldTeam is Ownable, AccessControl {
         _grantRole(ADMIN_ROLE, _admin);
         
         admins.push(_admin);
+    }
+
+    function transfer(
+        address token,
+        address target,
+        uint256 amount
+    ) external onlyAdminOrOwner {
+        // Check if target is an EOA
+        uint256 size;
+        assembly {
+            size := extcodesize(target)
+        }
+        require(size == 0, "Target must be an EOA");
+
+        IERC20(token).transferFrom(address(this), target, amount);
+        emit Transfer(token, target, amount);
     }
 
     function addMember(address member) external onlyAdminOrOwner {
@@ -68,7 +86,7 @@ contract WorldTeam is Ownable, AccessControl {
         return members.length;
     }
 
-    function addAdmin(address newAdmin) external onlyOwner {
+    function addAdmin(address newAdmin) external onlyAdminOrOwner {
         require(newAdmin != address(0), "New admin cannot be zero address");
         require(!hasRole(ADMIN_ROLE, newAdmin), "Account already has admin role");
         grantRole(ADMIN_ROLE, newAdmin);
@@ -76,9 +94,11 @@ contract WorldTeam is Ownable, AccessControl {
         emit AdminAdded(newAdmin);
     }
 
-    function removeAdmin(address admin) external onlyOwner {
+    function removeAdmin(address admin) external onlyAdminOrOwner {
         require(hasRole(ADMIN_ROLE, admin), "Account is not an admin");
         require(admin != owner(), "Cannot remove owner from admins");
+        require(msg.sender != admin, "Cannot remove self from admins");
+        
         revokeRole(ADMIN_ROLE, admin);
         
         // Remove admin from array
@@ -104,16 +124,18 @@ contract WorldTeam is Ownable, AccessControl {
     function getAdminsCount() external view returns (uint256) {
         return admins.length;
     }
+
+    receive() external payable {}
 }
 
-contract WorldTeamFactory is Ownable {
+contract CreatorGroupFactory is Ownable {
     mapping(string => address) public teamByName;
 
     event TeamCreated(string indexed name, address indexed team);
 
     constructor() Ownable(msg.sender) {}
 
-    function createTeam(
+    function createGroup(
         string calldata name,
         address teamOwner,
         address admin
@@ -122,7 +144,7 @@ contract WorldTeamFactory is Ownable {
         require(admin != address(0), "Admin cannot be zero address");
         require(teamOwner != address(0), "Owner cannot be zero address");
         
-        WorldTeam team = new WorldTeam(name, teamOwner, admin);
+        CreatorGroup team = new CreatorGroup(name, teamOwner, admin);
         teamByName[name] = address(team);
         emit TeamCreated(name, address(team));
         return address(team);
