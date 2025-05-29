@@ -21,7 +21,7 @@ interface IRuleManager {
     uint256 tokenId
   ) external view returns (Rule memory);
 
-  function getRuleAtTimestamp(
+  function getRuleWithTimestamp(
     address nftContract,
     uint256 tokenId,
     uint256 timestamp
@@ -58,6 +58,7 @@ contract Tenant is AccessControl {
   event TokenTransferred(address indexed token, address indexed from, address indexed to, uint256 amount);
   event TokensDistributed(address indexed token, address indexed teamAddress, uint256 totalAmount);
   event RuleManagerSet(address indexed ruleManager);
+  event TokenDistributed(address indexed recipient, uint256 amount, CurrencyType ccyType, address indexed token);
   
   struct UTXR {
     string reqID;
@@ -87,14 +88,14 @@ contract Tenant is AccessControl {
 
   constructor(
     address _manager,
-    address _admin,
+    address _creator,
     string memory _name,
     CurrencyType _ccyType,
     address _ccyAddr,
     uint256 _payoutPeriod
   ) {
     manager = _manager;
-    creator = _admin;
+    creator = _creator;
     name = _name;
     ccyType = _ccyType;
     payoutPeriod = _payoutPeriod;
@@ -153,40 +154,23 @@ contract Tenant is AccessControl {
     require(reqIDToIdx[reqID] == 0, "Duplicate reqID");
 
     Rule memory rule;
-    bool ruleExists = false;
+    uint256 ruleTimestamp = 0;
     
-    try IRuleManager(ruleManager).getCurrentRule(contractAddr, tokenID) returns (Rule memory _rule) {
-      rule = _rule;
-      if (rule.ruleSetter == recipient) {
-        ruleExists = true;
-      }
-    } catch {
-      ruleExists = false;
+    rule = IRuleManager(ruleManager).getCurrentRule(contractAddr, tokenID);
+    if (rule.ruleSetter == recipient) {
+      ruleTimestamp = rule.timestamp;
     }
     
-    if (ruleExists && rule.recipients.length > 0) {
-      _createUTXR(
-        reqID,
-        amount,
-        block.timestamp + payoutPeriod,
-        recipient,
-        chainID,
-        contractAddr,
-        tokenID,
-        rule.timestamp
-      );
-    } else {
-      _createUTXR(
-        reqID,
-        amount,
-        block.timestamp + payoutPeriod,
-        recipient,
-        chainID,
-        contractAddr,
-        tokenID,
-        0
-      );
-    }
+    _createUTXR(
+      reqID,
+      amount,
+      block.timestamp + payoutPeriod,
+      recipient,
+      chainID,
+      contractAddr,
+      tokenID,
+      ruleTimestamp
+    );
   }
 
   // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
@@ -299,31 +283,34 @@ contract Tenant is AccessControl {
 
   function _processSettlement(UTXR storage utxr) internal {
     if (utxr.ruleTimestamp > 0) {
-      Rule memory rule = IRuleManager(ruleManager).getRuleAtTimestamp(
+      Rule memory rule = IRuleManager(ruleManager).getRuleWithTimestamp(
         utxr.contractAddr,
         utxr.tokenID,
         utxr.ruleTimestamp
       );
       
-      uint256 totalRatio = 0;
-      for (uint i = 0; i < rule.ratios.length; i++) {
-        totalRatio += rule.ratios[i];
-      }
-      
-      uint256 distributedAmount = 0;
-      for (uint i = 0; i < rule.recipients.length - 1; i++) {
-        uint256 shareAmount = (utxr.amount * rule.ratios[i]) / totalRatio;
-        if (shareAmount > 0) {
-          _distributeTokens(rule.recipients[i], shareAmount);
-          distributedAmount += shareAmount;
+      if (rule.recipients.length == 1) {
+        _distributeTokens(rule.recipients[0], utxr.amount);
+      } else {
+        uint256 totalRatio = 0;
+        for (uint i = 0; i < rule.ratios.length; i++) {
+          totalRatio += rule.ratios[i];
         }
-      }
-      
-      // Last recipient gets the remaining amount
-      uint256 lastIndex = rule.recipients.length - 1;
-      uint256 remainingAmount = utxr.amount - distributedAmount;
-      if (remainingAmount > 0) {
-        _distributeTokens(rule.recipients[lastIndex], remainingAmount);
+        
+        uint256 distributedAmount = 0;
+        for (uint i = 0; i < rule.recipients.length - 1; i++) {
+          uint256 shareAmount = (utxr.amount * rule.ratios[i]) / totalRatio;
+          if (shareAmount > 0) {
+            _distributeTokens(rule.recipients[i], shareAmount);
+            distributedAmount += shareAmount;
+          }
+        }
+        
+        uint256 remainingAmount = utxr.amount - distributedAmount;
+        if (remainingAmount > 0) {
+          uint256 lastIndex = rule.recipients.length - 1;
+          _distributeTokens(rule.recipients[lastIndex], remainingAmount);
+        }
       }
     } else {
       _distributeTokens(utxr.recipient, utxr.amount);
@@ -341,6 +328,7 @@ contract Tenant is AccessControl {
     } else if (ccyType == CurrencyType.MINTABLES) {
       IMintable(ccyAddr).mint(recipient, amount);
     }
+    emit TokenDistributed(recipient, amount, ccyType, ccyAddr);
   }
 
   function needSettlement() public view returns (bool) {

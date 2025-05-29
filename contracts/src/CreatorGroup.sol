@@ -18,7 +18,6 @@ contract CreatorGroup is Ownable, AccessControl {
     event AdminRemoved(address indexed admin);
     event MemberAdded(address indexed member);
     event MemberRemoved(address indexed member);
-    event Transfer(address indexed token, address indexed target, uint256 amount);
 
     modifier onlyAdminOrOwner() {
         require(hasRole(ADMIN_ROLE, msg.sender) || msg.sender == owner(), "Not admin or owner");
@@ -44,15 +43,7 @@ contract CreatorGroup is Ownable, AccessControl {
         address target,
         uint256 amount
     ) external onlyAdminOrOwner {
-        // Check if target is an EOA
-        uint256 size;
-        assembly {
-            size := extcodesize(target)
-        }
-        require(size == 0, "Target must be an EOA");
-
         IERC20(token).transfer(target, amount);
-        emit Transfer(token, target, amount);
     }
 
     function addMember(address member) external onlyAdminOrOwner {
@@ -129,28 +120,33 @@ contract CreatorGroup is Ownable, AccessControl {
 }
 
 contract CreatorGroupFactory is Ownable {
-    mapping(string => address) public teamByName;
+    mapping(string => address) public groupByName;
+    mapping(address => bool) public isCreatorGroup;
 
-    event TeamCreated(string indexed name, address indexed team);
+    event GroupCreated(string indexed name, address indexed group);
 
     constructor() Ownable(msg.sender) {}
 
     function createGroup(
         string calldata name,
-        address teamOwner,
+        address groupOwner,
         address admin
     ) external onlyOwner returns (address) {
-        require(teamByName[name] == address(0), "Team name already exists");
+        require(groupByName[name] == address(0), "Group name already exists");
         require(admin != address(0), "Admin cannot be zero address");
-        require(teamOwner != address(0), "Owner cannot be zero address");
+        require(groupOwner != address(0), "Owner cannot be zero address");
         
-        CreatorGroup team = new CreatorGroup(name, teamOwner, admin);
-        teamByName[name] = address(team);
-        emit TeamCreated(name, address(team));
-        return address(team);
+        CreatorGroup group = new CreatorGroup(name, groupOwner, admin);
+        address groupAddress = address(group);
+        
+        groupByName[name] = groupAddress;
+        isCreatorGroup[groupAddress] = true;
+        
+        emit GroupCreated(name, groupAddress);
+        return groupAddress;
     }
 
-    function getTeam(string calldata name) external view returns (address) {
-        return teamByName[name];
+    function getGroup(string calldata name) external view returns (address) {
+        return groupByName[name];
     }
 }

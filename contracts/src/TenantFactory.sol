@@ -8,14 +8,14 @@ contract TenantFactory is Ownable {
     event TenantCreated(
         address indexed tenantAddress,
         address indexed manager,
-        address indexed admin
+        address indexed creator
     );
 
     constructor() Ownable(msg.sender) {}
     
     function createTenant(
         address manager,
-        address admin,
+        address creator,
         string memory name,
         Tenant.CurrencyType ccyType,
         address ccyAddr,
@@ -25,14 +25,14 @@ contract TenantFactory is Ownable {
         
         Tenant newTenant = new Tenant(
             manager,
-            admin,
+            creator,
             name,
             ccyType,
             ccyAddr,
             payoutPeriod
         );
         
-        emit TenantCreated(address(newTenant), manager, admin);
+        emit TenantCreated(address(newTenant), manager, creator);
         return address(newTenant);
     }
 } 

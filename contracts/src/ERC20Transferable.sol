@@ -5,14 +5,31 @@ pragma solidity ^0.8.25;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
+interface ICreatorGroupFactory {
+    function isCreatorGroup(address group) external view returns (bool);
+}
+
 contract ERC20Transferable is ERC20, AccessControl {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+    address public creatorGroupFactory;
     
     event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
     event TokensBurned(address indexed burner, uint256 amount);
+    event CreatorGroupFactorySet(address indexed factory);
 
     constructor(address defaultAdmin, string memory name, string memory symbol) ERC20(name, symbol) {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+    }
+
+    function setCreatorGroupFactory(address _factory) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_factory != address(0), "Factory cannot be zero address");
+        creatorGroupFactory = _factory;
+        emit CreatorGroupFactorySet(_factory);
+    }
+
+    function _checkCreatorGroup(address account) internal view returns (bool) {
+        if (creatorGroupFactory == address(0)) return false;
+        return ICreatorGroupFactory(creatorGroupFactory).isCreatorGroup(account);
     }
 
     function mint(address to, uint256 amount) public {
@@ -35,6 +52,18 @@ contract ERC20Transferable is ERC20, AccessControl {
 
     function decimals() public pure override returns (uint8) {
         return 0;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        require(_checkCreatorGroup(msg.sender), "Only CreatorGroup can call transfer");
+        
+        uint256 size;
+        assembly {
+            size := extcodesize(to)
+        }
+        require(size == 0, "Target must be an EOA");
+        _transfer(_msgSender(), to, amount);
+        return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {

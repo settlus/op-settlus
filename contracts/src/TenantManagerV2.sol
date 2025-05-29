@@ -5,8 +5,6 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "./BasicERC20.sol";
-import "./ERC20Transferable.sol";
 import "./Tenant.sol";
 import "./TenantFactory.sol";
 
@@ -44,15 +42,18 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
     bytes32 public constant SETTLER_ROLE = keccak256("SETTLER_ROLE");
 
     event TenantCreated(
-        address tenantAddress, string tenantName, Tenant.CurrencyType ccyType, address ccyAddr, uint256 payoutPeriod
+        address indexed tenantAddress, 
+        string tenantName, 
+        uint8 ccyType, 
+        address indexed ccyAddr, 
+        uint256 payoutPeriod
     );
 
-    event TenantRemoved(address tenantAddress, string tenantName);
+    event TenantRemoved(address indexed tenantAddress, string tenantName);
 
-    event TenantAddressesLength(uint256 length);
-    event TenantSettled(address tenantAddress);
+    event TenantSettled(address indexed tenantAddress);
 
-    event SettleFailed(address tenantAddress);
+    event SettleFailed(address indexed tenantAddress);
 
     event TenantFactorySet(address indexed factory, uint256 version);
 
@@ -81,22 +82,18 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
 
     function setTenantFactory(address _factory) external onlyOwner {
-        require(_factory != address(0), "Factory cannot be zero address");
+        require(_factory != address(0), "Invalid factory");
         tenantFactoryAddress = _factory;
         tenantVersion += 1;
         emit TenantFactorySet(_factory, tenantVersion);
     }
 
-    function createTenant(
+    function _createTenantInternal(
         string memory name,
         Tenant.CurrencyType ccyType,
         address ccyAddr,
         uint256 payoutPeriod
-    )
-        public
-        payable
-        returns (address)
-    {
+    ) internal returns (address) {
         bytes32 nameHash = keccak256(abi.encodePacked(name));
         if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
 
@@ -117,9 +114,17 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
         
         tenants[nameHash] = newTenantAddress;
         tenantAddresses.push(newTenantAddress);
-
-        emit TenantCreated(newTenantAddress, name, ccyType, ccyAddr, payoutPeriod);
+        emit TenantCreated(newTenantAddress, name, uint8(ccyType), ccyAddr, payoutPeriod);
         return newTenantAddress;
+    }
+
+    function createTenant(
+        string memory name,
+        Tenant.CurrencyType ccyType,
+        address ccyAddr,
+        uint256 payoutPeriod
+    ) public payable returns (address) {
+        return _createTenantInternal(name, ccyType, ccyAddr, payoutPeriod);
     }
 
     function createTenantWithMintableContract(
@@ -128,39 +133,8 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
         uint256 payoutPeriod,
         string memory tokenName,
         string memory tokenSymbol
-    )
-        public
-        payable
-        returns (address)
-    {
-        bytes32 nameHash = keccak256(abi.encodePacked(name));
-        if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
-        require(ccyType == Tenant.CurrencyType.MINTABLES, "ccyType must be MINTABLES");
-
-        address newTenantAddress;
-        if (tenantFactoryAddress != address(0)) {
-            newTenantAddress = TenantFactory(tenantFactoryAddress).createTenant(
-                address(this), 
-                msg.sender, 
-                name, 
-                ccyType, 
-                address(0), 
-                payoutPeriod
-            );
-        } else {
-            Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
-            newTenantAddress = address(newTenant);
-        }
-
-        ERC20Transferable newMintableContract = new ERC20Transferable(newTenantAddress, tokenName, tokenSymbol);
-        
-        ITenant(newTenantAddress).setCurrencyAddress(address(newMintableContract));
-        
-        tenants[nameHash] = newTenantAddress;
-        tenantAddresses.push(newTenantAddress);
-
-        emit TenantCreated(newTenantAddress, name, ccyType, address(0), payoutPeriod);
-        return newTenantAddress;
+    ) public payable returns (address) {
+        revert("Deprecated");
     }
 
     function settleAll() public onlyRole(SETTLER_ROLE) {
