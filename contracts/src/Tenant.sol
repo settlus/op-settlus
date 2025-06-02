@@ -346,5 +346,10 @@ contract Tenant is AccessControl {
     emit RuleManagerSet(ruleManagerAddress);
   }
 
+  function burnTokens(address account, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    require(ccyAddr != address(0), "Currency address not set");
+    ERC20Transferable(ccyAddr).burnFrom(account, amount);
+  }
+
   receive() external payable {}
 }

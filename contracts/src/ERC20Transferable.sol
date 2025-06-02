@@ -11,25 +11,12 @@ interface ICreatorGroupFactory {
 
 contract ERC20Transferable is ERC20, AccessControl {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
-    address public creatorGroupFactory;
     
     event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
     event TokensBurned(address indexed burner, uint256 amount);
-    event CreatorGroupFactorySet(address indexed factory);
 
     constructor(address defaultAdmin, string memory name, string memory symbol) ERC20(name, symbol) {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-    }
-
-    function setCreatorGroupFactory(address _factory) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_factory != address(0), "Factory cannot be zero address");
-        creatorGroupFactory = _factory;
-        emit CreatorGroupFactorySet(_factory);
-    }
-
-    function _checkCreatorGroup(address account) internal view returns (bool) {
-        if (creatorGroupFactory == address(0)) return false;
-        return ICreatorGroupFactory(creatorGroupFactory).isCreatorGroup(account);
     }
 
     function mint(address to, uint256 amount) public {
@@ -38,14 +25,12 @@ contract ERC20Transferable is ERC20, AccessControl {
     }
 
     function burn(uint256 amount) public {
-        require(hasRole(OPERATOR_ROLE, _msgSender()), "Must have operator role to burn");
         _burn(_msgSender(), amount);
         emit TokensBurned(_msgSender(), amount);
     }
 
     function burnFrom(address account, uint256 amount) public {
-        require(hasRole(OPERATOR_ROLE, _msgSender()), "Must have operator role to burn");
-        _spendAllowance(account, _msgSender(), amount);
+        require(hasRole(OPERATOR_ROLE, _msgSender()), "Must have operator role to burn from");
         _burn(account, amount);
         emit TokensBurned(account, amount);
     }
@@ -55,20 +40,20 @@ contract ERC20Transferable is ERC20, AccessControl {
     }
 
     function transfer(address to, uint256 amount) public override returns (bool) {
-        require(_checkCreatorGroup(msg.sender), "Only CreatorGroup can call transfer");
-        
-        uint256 size;
-        assembly {
-            size := extcodesize(to)
-        }
-        require(size == 0, "Target must be an EOA");
-        _transfer(_msgSender(), to, amount);
-        return true;
-    }
+        uint256 senderSize;
+        uint256 receiverSize;
 
-    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
-        require(hasRole(OPERATOR_ROLE, _msgSender()), "Must have operator role to transfer");
-        _transfer(from, to, amount);
+        assembly {
+            senderSize := extcodesize(caller())
+        }
+        require(senderSize > 0, "Sender must be a contract");
+
+        assembly {
+            receiverSize := extcodesize(to)
+        }
+        require(receiverSize == 0, "Target must be an EOA");
+        
+        _transfer(_msgSender(), to, amount);
         return true;
     }
 
