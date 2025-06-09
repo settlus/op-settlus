@@ -5,10 +5,6 @@ pragma solidity ^0.8.25;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-interface ICreatorGroupFactory {
-    function isCreatorGroup(address group) external view returns (bool);
-}
-
 contract ERC20Transferable is ERC20, AccessControl {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     
