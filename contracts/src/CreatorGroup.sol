@@ -18,6 +18,7 @@ contract CreatorGroup is Ownable, AccessControl {
     event AdminRemoved(address indexed admin);
     event MemberAdded(address indexed member);
     event MemberRemoved(address indexed member);
+    event TokenTransferred(address indexed token, address indexed target, uint256 amount);
 
     modifier onlyAdminOrOwner() {
         require(hasRole(ADMIN_ROLE, msg.sender) || msg.sender == owner(), "Not admin or owner");
@@ -44,6 +45,7 @@ contract CreatorGroup is Ownable, AccessControl {
         uint256 amount
     ) external onlyAdminOrOwner {
         IERC20(token).transfer(target, amount);
+        emit TokenTransferred(token, target, amount);
     }
 
     function addMember(address member) external onlyAdminOrOwner {
