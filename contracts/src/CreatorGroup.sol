@@ -19,6 +19,7 @@ contract CreatorGroup is Ownable, AccessControl {
     event MemberAdded(address indexed member);
     event MemberRemoved(address indexed member);
     event TokenTransferred(address indexed token, address indexed target, uint256 amount);
+    event MultiTokenTransferred(address indexed token, uint256 totalAmount, uint256 recipientCount);
 
     modifier onlyAdminOrOwner() {
         require(hasRole(ADMIN_ROLE, msg.sender) || msg.sender == owner(), "Not admin or owner");
@@ -46,6 +47,23 @@ contract CreatorGroup is Ownable, AccessControl {
     ) external onlyAdminOrOwner {
         IERC20(token).transfer(target, amount);
         emit TokenTransferred(token, target, amount);
+    }
+
+    function multiTransfer(
+        address token,
+        address[] calldata targets,
+        uint256[] calldata amounts
+    ) external onlyAdminOrOwner {
+        require(targets.length == amounts.length, "Arrays length mismatch");
+        require(targets.length > 0, "Empty arrays");
+        
+        for (uint256 i = 0; i < targets.length; i++) {
+            require(targets[i] != address(0), "Invalid target address");
+            require(amounts[i] > 0, "Amount must be greater than 0");
+            
+            IERC20(token).transfer(targets[i], amounts[i]);
+            emit TokenTransferred(token, targets[i], amounts[i]);
+        }
     }
 
     function addMember(address member) external onlyAdminOrOwner {
@@ -142,7 +160,7 @@ contract CreatorGroupFactory is Ownable {
         address groupAddress = address(group);
         
         groupByName[name] = groupAddress;
-        isCreatorGroup[groupAddress] = true;
+        isCreatorGroup[groupAddress] = true; // CreatorGroup으로 등록
         
         emit GroupCreated(name, groupAddress);
         return groupAddress;
