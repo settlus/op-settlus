@@ -19,7 +19,7 @@ contract CreatorGroup is Ownable, AccessControl {
     event MemberAdded(address indexed member);
     event MemberRemoved(address indexed member);
     event TokenTransferred(address indexed token, address indexed target, uint256 amount);
-    event MultiTokenTransferred(address indexed token, uint256 totalAmount, uint256 recipientCount);
+    event ContractCallExecuted(address indexed target, bytes data, uint256 value);
 
     modifier onlyAdminOrOwner() {
         require(hasRole(ADMIN_ROLE, msg.sender) || msg.sender == owner(), "Not admin or owner");
@@ -134,6 +134,20 @@ contract CreatorGroup is Ownable, AccessControl {
 
     function getAdminsCount() external view returns (uint256) {
         return admins.length;
+    }
+
+    function executeCall(
+        address target,
+        bytes calldata data,
+        uint256 value
+    ) external onlyAdminOrOwner returns (bytes memory) {
+        require(target != address(0), "Invalid target address");
+        
+        (bool success, bytes memory result) = target.call{value: value}(data);
+        require(success, "Call failed");
+        
+        emit ContractCallExecuted(target, data, value);
+        return result;
     }
 
     receive() external payable {}
