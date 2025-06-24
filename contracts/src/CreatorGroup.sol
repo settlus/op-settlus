@@ -154,7 +154,7 @@ contract CreatorGroup is Ownable, AccessControl {
 }
 
 contract CreatorGroupFactory is Ownable {
-    mapping(string => address) public groupByName;
+    mapping(string => address) public groupById;
     mapping(address => bool) public isCreatorGroup;
 
     event GroupCreated(string indexed name, address indexed group);
@@ -162,25 +162,25 @@ contract CreatorGroupFactory is Ownable {
     constructor() Ownable(msg.sender) {}
 
     function createGroup(
-        string calldata name,
+        string calldata groupId,
         address groupOwner,
         address admin
     ) external onlyOwner returns (address) {
-        require(groupByName[name] == address(0), "Group name already exists");
+        require(groupById[groupId] == address(0), "Group name already exists");
         require(admin != address(0), "Admin cannot be zero address");
         require(groupOwner != address(0), "Owner cannot be zero address");
         
         CreatorGroup group = new CreatorGroup(name, groupOwner, admin);
         address groupAddress = address(group);
         
-        groupByName[name] = groupAddress;
+        groupById[groupId] = groupAddress;
         isCreatorGroup[groupAddress] = true; // CreatorGroup으로 등록
         
-        emit GroupCreated(name, groupAddress);
+        emit GroupCreated(groupId, groupAddress);
         return groupAddress;
     }
 
-    function getGroup(string calldata name) external view returns (address) {
-        return groupByName[name];
+    function getGroup(string calldata groupId) external view returns (address) {
+        return groupById[groupId];
     }
 }
