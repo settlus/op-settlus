@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract BaseNFT is ERC721URIStorage, Ownable {
   uint256 private _nextTokenId;
 
-  constructor(string memory name, string memory symbol) ERC721(name, symbol) Ownable(msg.sender) {}
+  constructor(string memory name, string memory symbol, address initialOwner) ERC721(name, symbol) Ownable(initialOwner) {}
 
   function safeMint(address to, string memory uri) public onlyOwner returns (uint256) {
     uint256 tokenId = _nextTokenId;

@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract CreatorGroup is Ownable, AccessControl {
-    string public name;
+    string public groupId;
     mapping(address => bool) public isMember;
     address[] public members;
     address[] public admins;
@@ -27,12 +27,12 @@ contract CreatorGroup is Ownable, AccessControl {
     }
 
     constructor(
-        string memory _name,
+        string memory _groupId,
         address _owner,
         address _admin
     ) Ownable(_owner) {
         require(_admin != address(0), "Admin cannot be zero address");
-        name = _name;
+        groupId = _groupId;
         
         _grantRole(ADMIN_ROLE, _owner);
         _grantRole(ADMIN_ROLE, _admin);
@@ -157,7 +157,7 @@ contract CreatorGroupFactory is Ownable {
     mapping(string => address) public groupById;
     mapping(address => bool) public isCreatorGroup;
 
-    event GroupCreated(string indexed name, address indexed group);
+    event GroupCreated(string indexed groupId, address indexed group);
 
     constructor() Ownable(msg.sender) {}
 
@@ -166,11 +166,11 @@ contract CreatorGroupFactory is Ownable {
         address groupOwner,
         address admin
     ) external onlyOwner returns (address) {
-        require(groupById[groupId] == address(0), "Group name already exists");
+        require(groupById[groupId] == address(0), "Group ID already exists");
         require(admin != address(0), "Admin cannot be zero address");
         require(groupOwner != address(0), "Owner cannot be zero address");
         
-        CreatorGroup group = new CreatorGroup(name, groupOwner, admin);
+        CreatorGroup group = new CreatorGroup(groupId, groupOwner, admin);
         address groupAddress = address(group);
         
         groupById[groupId] = groupAddress;
