@@ -2,11 +2,12 @@
 pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract CreatorGroup is Ownable, AccessControl {
+contract CreatorGroup is Ownable, AccessControl, IERC721Receiver {
     string public groupId;
     mapping(address => bool) public isMember;
     address[] public members;
@@ -150,6 +151,15 @@ contract CreatorGroup is Ownable, AccessControl {
         return result;
     }
 
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     receive() external payable {}
 }
 
@@ -157,7 +167,7 @@ contract CreatorGroupFactory is Ownable {
     mapping(string => address) public groupById;
     mapping(address => bool) public isCreatorGroup;
 
-    event GroupCreated(string indexed groupId, address indexed group);
+    event GroupCreated(string indexed name, address indexed group);
 
     constructor() Ownable(msg.sender) {}
 
@@ -166,7 +176,7 @@ contract CreatorGroupFactory is Ownable {
         address groupOwner,
         address admin
     ) external onlyOwner returns (address) {
-        require(groupById[groupId] == address(0), "Group ID already exists");
+        require(groupById[groupId] == address(0), "Group name already exists");
         require(admin != address(0), "Admin cannot be zero address");
         require(groupOwner != address(0), "Owner cannot be zero address");
         
