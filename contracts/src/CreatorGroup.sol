@@ -157,7 +157,7 @@ contract CreatorGroup is Ownable, AccessControl, IERC721Receiver {
         uint256 tokenId,
         bytes calldata data
     ) external override returns (bytes4) {
-        return this.onERC721Received.selector;
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     receive() external payable {}
