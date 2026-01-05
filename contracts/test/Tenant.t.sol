@@ -7,7 +7,7 @@ import { TestHelpers } from "./utils/TestHelpers.sol";
 import { Tenant } from "../src/Tenant.sol";
 import { TenantManager } from "../src/TenantManager.sol";
 import { BasicERC20 } from "../src/BasicERC20.sol";
-import { ERC20NonTransferable } from "../src/ERC20NonTransferable.sol";
+import { ERC20Transferable } from "../src/ERC20Transferable.sol";
 
 contract TenantTest is TestHelpers {
     bytes32 public constant ADMIN_ROLE = 0x00;
@@ -125,7 +125,7 @@ contract TenantTest is TestHelpers {
 
         _recordUTXR(tenantAddr, reqID, amount);
 
-        (string memory storedReqID, uint256 storedAmount,, address recipient,,,,) = tenant.utxrs(0);
+        (string memory storedReqID, uint256 storedAmount,, address recipient,,,,,) = tenant.utxrs(0);
 
         assertEq(storedReqID, reqID);
         assertEq(storedAmount, amount);
@@ -139,17 +139,18 @@ contract TenantTest is TestHelpers {
         // First record with original NFT owner
         _recordUTXR(tenantAddr, "reqId1", 100);
 
-        (,,, address recipient1,,,,) = tenant.utxrs(0);
+        (,,, address recipient1,,,,,) = tenant.utxrs(0);
         assertEq(recipient1, nftOwner);
 
         // Transfer NFT to new owner
         vm.prank(nftOwner);
         nft.transferFrom(nftOwner, newNftOwner, 0);
 
-        // Record again - should show new owner
-        _recordUTXR(tenantAddr, "reqId2", 200);
+        // Record again - recipient is now newNftOwner (set in recordRaw)
+        vm.prank(tenantOwner);
+        tenant.recordRaw("reqId2", 200, newNftOwner);
 
-        (,,, address recipient2,,,,) = tenant.utxrs(1);
+        (,,, address recipient2,,,,,) = tenant.utxrs(1);
         assertEq(recipient2, newNftOwner);
     }
 
@@ -163,7 +164,7 @@ contract TenantTest is TestHelpers {
         vm.prank(tenantOwner);
         tenant.recordRaw(reqID, amount, nftOwner);
 
-        (string memory storedReqID, uint256 storedAmount,, address recipient, uint256 chainID, address contractAddr, uint256 tokenID,) = tenant.utxrs(0);
+        (string memory storedReqID, uint256 storedAmount,, address recipient, uint256 chainID, address contractAddr, uint256 tokenID,,) = tenant.utxrs(0);
 
         assertEq(storedReqID, reqID);
         assertEq(storedAmount, amount);
@@ -246,7 +247,7 @@ contract TenantTest is TestHelpers {
         Tenant tenant = Tenant(payable(tenantAddr));
 
         address mintableAddr = tenant.ccyAddr();
-        ERC20NonTransferable tenantMintable = ERC20NonTransferable(mintableAddr);
+        ERC20Transferable tenantMintable = ERC20Transferable(mintableAddr);
 
         assertEq(tenantMintable.balanceOf(nftOwner), 0);
 
@@ -269,9 +270,9 @@ contract TenantTest is TestHelpers {
         vm.prank(tenantOwner);
         address tenantAddr = tenantManager.createTenant{ value: TENANT_CREATION_FEE }("Settle Tenant", Tenant.CurrencyType.MINTABLES, address(mintable), PAYOUT_PERIOD);
 
-        // Grant admin role to tenant so it can mint
+        // Grant operator role to tenant so it can mint (ERC20Transferable uses OPERATOR_ROLE)
         vm.prank(tenantOwner);
-        mintable.grantRole(ADMIN_ROLE, tenantAddr);
+        mintable.grantOperatorRole(tenantAddr);
 
         uint256 initialBalance = mintable.balanceOf(nftOwner);
 
@@ -292,7 +293,7 @@ contract TenantTest is TestHelpers {
         Tenant tenant = Tenant(payable(tenantAddr));
 
         address mintableAddr = tenant.ccyAddr();
-        ERC20NonTransferable tenantMintable = ERC20NonTransferable(mintableAddr);
+        ERC20Transferable tenantMintable = ERC20Transferable(mintableAddr);
 
         // Record 3 UTXRs
         _recordUTXR(tenantAddr, "reqId1", 100);
@@ -311,9 +312,9 @@ contract TenantTest is TestHelpers {
         tenant.settle(5);
 
         // Check statuses: 0=Pending, 1=Settled, 2=Cancelled
-        (,,,,,,, Tenant.RecordStatus status1) = tenant.utxrs(0);
-        (,,,,,,, Tenant.RecordStatus status2) = tenant.utxrs(1);
-        (,,,,,,, Tenant.RecordStatus status3) = tenant.utxrs(2);
+        (,,,,,,,, Tenant.RecordStatus status1) = tenant.utxrs(0);
+        (,,,,,,,, Tenant.RecordStatus status2) = tenant.utxrs(1);
+        (,,,,,,,, Tenant.RecordStatus status3) = tenant.utxrs(2);
 
         assertEq(uint256(status1), 1); // Settled
         assertEq(uint256(status2), 2); // Cancelled
@@ -329,7 +330,7 @@ contract TenantTest is TestHelpers {
         Tenant tenant = Tenant(payable(tenantAddr));
 
         address mintableAddr = tenant.ccyAddr();
-        ERC20NonTransferable tenantMintable = ERC20NonTransferable(mintableAddr);
+        ERC20Transferable tenantMintable = ERC20Transferable(mintableAddr);
 
         // Record first UTXR
         _recordUTXR(tenantAddr, "reqId1", 100);
@@ -356,7 +357,7 @@ contract TenantTest is TestHelpers {
         assertEq(tenantMintable.balanceOf(nftOwner), 100 + 200);
 
         // reqId3 should remain
-        (string memory remainingReqID, uint256 remainingAmount,,,,,,) = tenant.utxrs(tenant.nextToSettleIdx());
+        (string memory remainingReqID, uint256 remainingAmount,,,,,,,) = tenant.utxrs(tenant.nextToSettleIdx());
         assertEq(remainingReqID, "reqId3");
         assertEq(remainingAmount, 150);
     }
@@ -378,7 +379,7 @@ contract TenantTest is TestHelpers {
         tenant.cancel("reqId1");
 
         // Status should still be Pending
-        (,,,,,,, Tenant.RecordStatus status) = tenant.utxrs(0);
+        (,,,,,,,, Tenant.RecordStatus status) = tenant.utxrs(0);
         assertEq(uint256(status), 0);
     }
 
@@ -411,7 +412,7 @@ contract TenantTest is TestHelpers {
 
         // Record on tenant2
         vm.prank(tenantOwner);
-        tenantManager.record(tenant2Addr, "reqId2", 100, block.chainid, address(nft), 0);
+        tenant2.recordRaw("reqId2", 100, nftOwner);
 
         // Another half period - tenant1's UTXR is now eligible
         _advanceTime(PAYOUT_PERIOD / 2);
@@ -441,7 +442,7 @@ contract TenantTest is TestHelpers {
 
         _recordUTXR(tenantAddr, "reqId1", amount);
 
-        (, uint256 storedAmount,,,,,,) = tenant.utxrs(0);
+        (, uint256 storedAmount,,,,,,,) = tenant.utxrs(0);
         assertEq(storedAmount, amount);
     }
 

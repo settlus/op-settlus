@@ -60,13 +60,9 @@ contract TenantManagerProxyTest is TestHelpers {
         address newImpl = tenantManagerProxy.getImplementation();
         assertEq(newImpl, address(v2Implementation));
 
-        // Test new variable and function
-        assertEq(upgradedManager.newVar(), address(0));
-
-        vm.prank(deployer);
-        upgradedManager.newFunction(randomUser);
-
-        assertEq(upgradedManager.newVar(), randomUser);
+        // Test V2-specific storage variables
+        assertEq(upgradedManager.tenantFactoryAddress(), address(0));
+        assertEq(upgradedManager.tenantVersion(), 0);
     }
 
     function test_onlyOwnerCanUpgrade() external {

@@ -7,7 +7,7 @@ import { TenantManagerProxy } from "../../src/TenantManagerProxy.sol";
 import { Tenant } from "../../src/Tenant.sol";
 import { BasicERC20 } from "../../src/BasicERC20.sol";
 import { BasicERC721 } from "../../src/BasicERC721.sol";
-import { ERC20NonTransferable } from "../../src/ERC20NonTransferable.sol";
+import { ERC20Transferable } from "../../src/ERC20Transferable.sol";
 
 abstract contract TestHelpers is Test {
     // Constants
@@ -27,7 +27,7 @@ abstract contract TestHelpers is Test {
     TenantManager public tenantManager;
     TenantManagerProxy public tenantManagerProxy;
     BasicERC20 public erc20;
-    ERC20NonTransferable public mintable;
+    ERC20Transferable public mintable;
     BasicERC721 public nft;
 
     function _setupActors() internal {
@@ -70,13 +70,13 @@ abstract contract TestHelpers is Test {
         vm.prank(tenantOwner);
         erc20 = new BasicERC20(tenantOwner, "Test ERC20", "TST");
 
-        // Deploy mintable (ERC20NonTransferable)
+        // Deploy mintable (ERC20Transferable)
         vm.prank(tenantOwner);
-        mintable = new ERC20NonTransferable(tenantOwner, "Test Mintable", "MTB");
+        mintable = new ERC20Transferable(tenantOwner, "Test Mintable", "MTB");
 
         // Deploy NFT and mint to nftOwner
         vm.startPrank(nftOwner);
-        nft = new BasicERC721(nftOwner);
+        nft = new BasicERC721("Test NFT", "TNFT");
         nft.safeMint(nftOwner);
         vm.stopPrank();
     }
@@ -93,12 +93,21 @@ abstract contract TestHelpers is Test {
 
     function _createTenantMintable(string memory name, string memory tokenName, string memory tokenSymbol) internal returns (address) {
         vm.prank(tenantOwner);
-        return tenantManager.createTenantWithMintableContract{ value: TENANT_CREATION_FEE }(name, Tenant.CurrencyType.MINTABLES, PAYOUT_PERIOD, tokenName, tokenSymbol);
+        address tenantAddr = tenantManager.createTenantWithMintableContract{ value: TENANT_CREATION_FEE }(name, Tenant.CurrencyType.MINTABLES, PAYOUT_PERIOD, tokenName, tokenSymbol);
+
+        // Grant OPERATOR_ROLE to tenant so it can mint (tenant is DEFAULT_ADMIN of the mintable)
+        Tenant tenant = Tenant(payable(tenantAddr));
+        ERC20Transferable mintableToken = ERC20Transferable(tenant.ccyAddr());
+        vm.prank(tenantAddr);
+        mintableToken.grantOperatorRole(tenantAddr);
+
+        return tenantAddr;
     }
 
     function _recordUTXR(address tenantAddr, string memory reqID, uint256 amount) internal {
+        Tenant tenant = Tenant(payable(tenantAddr));
         vm.prank(tenantOwner);
-        tenantManager.record(tenantAddr, reqID, amount, block.chainid, address(nft), 0);
+        tenant.recordRaw(reqID, amount, nftOwner);
     }
 
     function _advanceTime(uint256 seconds_) internal {

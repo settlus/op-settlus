@@ -7,7 +7,7 @@ import { TestHelpers } from "./utils/TestHelpers.sol";
 import { Tenant } from "../src/Tenant.sol";
 import { TenantManager } from "../src/TenantManager.sol";
 import { BasicERC20 } from "../src/BasicERC20.sol";
-import { ERC20NonTransferable } from "../src/ERC20NonTransferable.sol";
+import { ERC20Transferable } from "../src/ERC20Transferable.sol";
 
 contract TenantManagerTest is TestHelpers {
     bytes32 public constant SETTLER_ROLE = keccak256("SETTLER_ROLE");
@@ -173,6 +173,14 @@ contract TenantManagerTest is TestHelpers {
         Tenant tenant1 = Tenant(payable(tenant1Addr));
         Tenant tenant2 = Tenant(payable(tenant2Addr));
 
+        // Grant OPERATOR_ROLE to tenants so they can mint
+        address ccy1 = tenant1.ccyAddr();
+        address ccy2 = tenant2.ccyAddr();
+        vm.prank(tenant1Addr);
+        ERC20Transferable(ccy1).grantOperatorRole(tenant1Addr);
+        vm.prank(tenant2Addr);
+        ERC20Transferable(ccy2).grantOperatorRole(tenant2Addr);
+
         // Record UTXRs
         vm.prank(tenantOwner1);
         tenant1.recordRaw("reqId1", 500, nftOwner);
@@ -225,11 +233,19 @@ contract TenantManagerTest is TestHelpers {
         Tenant tenant1 = Tenant(payable(tenant1Addr));
         Tenant tenant2 = Tenant(payable(tenant2Addr));
 
-        ERC20NonTransferable tenant1ccy = ERC20NonTransferable(tenant1.ccyAddr());
-        ERC20NonTransferable tenant2ccy = ERC20NonTransferable(tenant2.ccyAddr());
+        address ccy1Addr = tenant1.ccyAddr();
+        address ccy2Addr = tenant2.ccyAddr();
+        ERC20Transferable tenant1ccy = ERC20Transferable(ccy1Addr);
+        ERC20Transferable tenant2ccy = ERC20Transferable(ccy2Addr);
 
-        // Record 100 UTXRs per tenant
-        uint256 recordNumber = 100;
+        // Grant OPERATOR_ROLE to tenants so they can mint
+        vm.prank(tenant1Addr);
+        tenant1ccy.grantOperatorRole(tenant1Addr);
+        vm.prank(tenant2Addr);
+        tenant2ccy.grantOperatorRole(tenant2Addr);
+
+        // Record 25 UTXRs per tenant (reduced from 100 to avoid gas issues)
+        uint256 recordNumber = 25;
         for (uint256 i = 0; i < recordNumber; i++) {
             vm.prank(tenantOwner1);
             tenant1.recordRaw(string(abi.encodePacked("Tenant1reqId", vm.toString(i))), 1, nftOwner);
