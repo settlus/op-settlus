@@ -2,15 +2,27 @@
 pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./BasicERC20.sol";
-import "./ERC20NonTransferable.sol";
-
-interface IERC721 {
-    function ownerOf(uint256 tokenId) external view returns (address);
-}
+import "./ERC20Transferable.sol";
+import "./RuleManager.sol";
+import "./CreatorGroup.sol";
 
 interface IMintable {
     function mint(address to, uint256 amount) external;
+}
+
+interface IRuleManager {
+    function getRule(address nftContract, uint256 tokenId) external view returns (Rule memory);
+
+    function getCurrentRule(address nftContract, uint256 tokenId) external view returns (Rule memory);
+
+    function getRuleWithTimestamp(address nftContract, uint256 tokenId, uint256 timestamp) external view returns (Rule memory);
+}
+
+struct Rule {
+    address[] recipients;
+    uint256[] ratios;
+    address ruleSetter;
+    uint256 timestamp;
 }
 
 contract Tenant is AccessControl {
@@ -33,6 +45,10 @@ contract Tenant is AccessControl {
     event RecorderAdded(address indexed recorder);
     event RecorderRemoved(address indexed recorder);
     event AdminTransferred(address indexed previousAdmin, address indexed newAdmin);
+    event TokenTransferred(address indexed token, address indexed from, address indexed to, uint256 amount);
+    event TokensDistributed(address indexed token, address indexed teamAddress, uint256 totalAmount);
+    event RuleManagerSet(address indexed ruleManager);
+    event TokenDistributed(address indexed recipient, uint256 amount, CurrencyType ccyType, address indexed token);
 
     struct UTXR {
         string reqID;
@@ -42,6 +58,7 @@ contract Tenant is AccessControl {
         uint256 chainID;
         address contractAddr;
         uint256 tokenID;
+        uint256 ruleTimestamp;
         RecordStatus status;
     }
 
@@ -50,6 +67,7 @@ contract Tenant is AccessControl {
     string public name;
     CurrencyType public ccyType;
     address public ccyAddr;
+    address public ruleManager;
     uint256 public payoutPeriod;
 
     UTXR[] public utxrs;
@@ -58,9 +76,9 @@ contract Tenant is AccessControl {
     mapping(string => uint256) public reqIDToIdx;
     mapping(string => bool) public reqIDExists;
 
-    constructor(address _manager, address _admin, string memory _name, CurrencyType _ccyType, address _ccyAddr, uint256 _payoutPeriod) {
+    constructor(address _manager, address _creator, string memory _name, CurrencyType _ccyType, address _ccyAddr, uint256 _payoutPeriod) {
         manager = _manager;
-        creator = _admin;
+        creator = _creator;
         name = _name;
         ccyType = _ccyType;
         payoutPeriod = _payoutPeriod;
@@ -71,8 +89,8 @@ contract Tenant is AccessControl {
             ccyAddr = _ccyAddr;
         }
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        _grantRole(RECORDER_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, creator);
+        _grantRole(RECORDER_ROLE, creator);
         _grantRole(RECORDER_ROLE, _manager);
     }
 
@@ -111,13 +129,15 @@ contract Tenant is AccessControl {
         require(bytes(reqID).length > 0, "reqID cannot be empty");
         require(reqIDToIdx[reqID] == 0, "Duplicate reqID");
 
-        UTXR memory newUTXR = UTXR({
-            reqID: reqID, amount: amount, timestamp: block.timestamp + payoutPeriod, recipient: recipient, chainID: chainID, contractAddr: contractAddr, tokenID: tokenID, status: RecordStatus.Pending
-        });
+        Rule memory rule;
+        uint256 ruleTimestamp = 0;
 
-        utxrs.push(newUTXR);
-        reqIDToIdx[reqID] = utxrs.length - 1;
-        reqIDExists[reqID] = true;
+        rule = IRuleManager(ruleManager).getCurrentRule(contractAddr, tokenID);
+        if (rule.ruleSetter == recipient) {
+            ruleTimestamp = rule.timestamp;
+        }
+
+        _createUTXR(reqID, amount, block.timestamp + payoutPeriod, recipient, chainID, contractAddr, tokenID, ruleTimestamp);
     }
 
     // recordRaw is for recording UTXRs that are not NFTs or custom use of Tenants
@@ -125,9 +145,21 @@ contract Tenant is AccessControl {
         require(bytes(reqID).length > 0, "reqID cannot be an empty string");
         require(reqIDToIdx[reqID] == 0, "Duplicate reqID");
 
-        uint256 payoutTimestamp = block.timestamp + payoutPeriod;
+        _createUTXR(reqID, amount, block.timestamp + payoutPeriod, recipient, 0, address(0), 0, 0);
+    }
 
-        UTXR memory newUTXR = UTXR({ reqID: reqID, amount: amount, timestamp: payoutTimestamp, recipient: recipient, chainID: 0, contractAddr: address(0), tokenID: 0, status: RecordStatus.Pending });
+    function _createUTXR(string memory reqID, uint256 amount, uint256 timestamp, address recipient, uint256 chainID, address contractAddr, uint256 tokenID, uint256 ruleTimestamp) internal {
+        UTXR memory newUTXR = UTXR({
+            reqID: reqID,
+            amount: amount,
+            timestamp: timestamp,
+            recipient: recipient,
+            chainID: chainID,
+            contractAddr: contractAddr,
+            tokenID: tokenID,
+            ruleTimestamp: ruleTimestamp,
+            status: RecordStatus.Pending
+        });
 
         utxrs.push(newUTXR);
         reqIDToIdx[reqID] = utxrs.length - 1;
@@ -168,37 +200,76 @@ contract Tenant is AccessControl {
 
     function settle(uint256 batchSize) public onlyManagerOrAdmin {
         if (nextToSettleIdx == utxrs.length) return;
-        uint256 currentLength = utxrs.length;
+
+        uint256 endIdx = nextToSettleIdx + batchSize;
+        if (endIdx > utxrs.length) {
+            endIdx = utxrs.length;
+        }
+
         uint256 count = 0;
-
-        for (uint256 i = nextToSettleIdx; i < currentLength; i++) {
-            if (count >= batchSize) {
-                break;
-            }
-
+        for (uint256 i = nextToSettleIdx; i < endIdx; i++) {
             UTXR storage utxr = utxrs[i];
+
             if (block.timestamp < utxr.timestamp) {
                 break;
             }
 
-            count += 1;
             if (utxr.status == RecordStatus.Cancelled) {
+                count++;
                 continue;
             }
 
-            if (ccyType == CurrencyType.ETH) {
-                payable(utxr.recipient).transfer(utxr.amount);
-            } else if (ccyType == CurrencyType.ERC20) {
-                IERC20(ccyAddr).transfer(utxr.recipient, utxr.amount);
-            } else if (ccyType == CurrencyType.MINTABLES) {
-                IMintable(ccyAddr).mint(utxr.recipient, utxr.amount);
-            }
-
-            utxr.status = RecordStatus.Settled;
-            //TODO: emitting event per settle can be expensive?
-            emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
+            _processSettlement(utxr);
+            count++;
         }
+
         nextToSettleIdx += count;
+    }
+
+    function _processSettlement(UTXR storage utxr) internal {
+        if (utxr.ruleTimestamp > 0) {
+            Rule memory rule = IRuleManager(ruleManager).getRuleWithTimestamp(utxr.contractAddr, utxr.tokenID, utxr.ruleTimestamp);
+
+            if (rule.recipients.length == 1) {
+                _distributeTokens(rule.recipients[0], utxr.amount);
+            } else {
+                uint256 totalRatio = 0;
+                for (uint256 i = 0; i < rule.ratios.length; i++) {
+                    totalRatio += rule.ratios[i];
+                }
+
+                uint256 distributedAmount = 0;
+                for (uint256 i = 0; i < rule.recipients.length - 1; i++) {
+                    uint256 shareAmount = (utxr.amount * rule.ratios[i]) / totalRatio;
+                    if (shareAmount > 0) {
+                        _distributeTokens(rule.recipients[i], shareAmount);
+                        distributedAmount += shareAmount;
+                    }
+                }
+
+                uint256 remainingAmount = utxr.amount - distributedAmount;
+                if (remainingAmount > 0) {
+                    uint256 lastIndex = rule.recipients.length - 1;
+                    _distributeTokens(rule.recipients[lastIndex], remainingAmount);
+                }
+            }
+        } else {
+            _distributeTokens(utxr.recipient, utxr.amount);
+        }
+
+        utxr.status = RecordStatus.Settled;
+        emit Settled(utxr.reqID, utxr.amount, utxr.recipient);
+    }
+
+    function _distributeTokens(address recipient, uint256 amount) internal {
+        if (ccyType == CurrencyType.ETH) {
+            payable(recipient).transfer(amount);
+        } else if (ccyType == CurrencyType.ERC20) {
+            IERC20(ccyAddr).transfer(recipient, amount);
+        } else if (ccyType == CurrencyType.MINTABLES) {
+            IMintable(ccyAddr).mint(recipient, amount);
+        }
+        emit TokenDistributed(recipient, amount, ccyType, ccyAddr);
     }
 
     function needSettlement() public view returns (bool) {
@@ -208,6 +279,17 @@ contract Tenant is AccessControl {
 
     function getRemainingUTXRCount() public view returns (uint256) {
         return utxrs.length - nextToSettleIdx;
+    }
+
+    function setRuleManager(address ruleManagerAddress) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(ruleManagerAddress != address(0), "Rule manager cannot be zero address");
+        ruleManager = ruleManagerAddress;
+        emit RuleManagerSet(ruleManagerAddress);
+    }
+
+    function burnTokens(address account, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(ccyAddr != address(0), "Currency address not set");
+        ERC20Transferable(ccyAddr).burnFrom(account, amount);
     }
 
     receive() external payable { }

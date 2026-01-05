@@ -5,8 +5,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "./BasicERC20.sol";
-import "./ERC20NonTransferable.sol";
+import "./ERC20Transferable.sol";
 import "./Tenant.sol";
 
 interface ITenant {
@@ -107,7 +106,7 @@ contract TenantManager is Initializable, OwnableUpgradeable, AccessControlUpgrad
         require(ccyType == Tenant.CurrencyType.MINTABLES, "ccyType must be MINTABLES");
 
         Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
-        ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
+        ERC20Transferable newMintableContract = new ERC20Transferable(address(newTenant), tokenName, tokenSymbol);
 
         newTenant.setCurrencyAddress(address(newMintableContract));
         tenants[nameHash] = address(newTenant);
