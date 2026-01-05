@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+
+      - name: "Install dependencies"
+        working-directory: ./contracts
+        run: bun install
 
       - name: "Build the contracts"
         working-directory: ./contracts
@@ -29,6 +34,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: oven-sh/setup-bun@v2
+
+      - name: "Install dependencies"
+        working-directory: ./contracts
+        run: bun install
 
       - name: "Show the Foundry config"
         working-directory: ./contracts
