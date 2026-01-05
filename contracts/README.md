@@ -1,6 +1,5 @@
 # Settlus Contracts
-
-Smart contracts for [Settlus](https://settlus.org).
+Smart contracts for [Settlus](https://settlus.org). Mostly migrating [settlement](https://github.com/settlus/chain/tree/main/x/settlement) module from Settlus chain.
 
 ## Getting Started
 
