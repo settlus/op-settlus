@@ -3,41 +3,21 @@
   "description": "Smart contracts for Settlus",
   "version": "0.0.1",
   "scripts": {
-    "hardhat:compile": "hardhat compile --force",
-    "hardhat:test": "hardhat test --network hardhat",
-    "hardhat:deploy": "npx hardhat run scripts/deploy.ts --network settlus",
-    "hardhat:single-tenant": "npx hardhat run scripts/singleTenant.ts --network settlus",
-    "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol' && prettier --write 'test/**/*.ts' 'scripts/**/*.ts'",
-    "clean": "rm -rf cache out",
     "build": "forge build",
-    "lint": "bun run lint:sol && bun run prettier:check",
-    "lint:sol": "forge fmt --check && bun solhint \"{script,src,test}/**/*.sol\"",
-    "prettier:check": "prettier --check \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
-    "prettier:write": "prettier --write \"**/*.{json,md,yml}\" --ignore-path \".prettierignore\"",
+    "clean": "forge clean",
     "test": "forge test",
+    "test:gas": "forge test --gas-report",
     "test:coverage": "forge coverage",
-    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage"
+    "test:coverage:report": "forge coverage --report lcov && genhtml lcov.info --branch-coverage --output-dir coverage",
+    "lint": "forge fmt --check",
+    "format": "forge fmt",
+    "deploy": "forge script scripts/Deploy.s.sol:Deploy --broadcast -vvvv",
+    "deploy:dry": "forge script scripts/Deploy.s.sol:Deploy -vvvv"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
-    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
-    "@nomicfoundation/hardhat-viem": "^2.0.5",
-    "@trivago/prettier-plugin-sort-imports": "^4.3.0",
-    "@types/chai": "^4.0.0",
-    "chai": "4.3.7",
-    "ethers": "^6.13.4",
-    "forge-std": "github:foundry-rs/forge-std#v1.8.1",
-    "hardhat": "^2.22.15",
-    "prettier": "^3.0.0",
-    "prettier-plugin-solidity": "^1.4.1",
-    "solhint": "^3.6.2",
-    "typescript": "^5.0.0",
-    "viem": "2.21.35"
+    "forge-std": "github:foundry-rs/forge-std#v1.8.1"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.731.1",
     "@openzeppelin/contracts": "^5.1.0",
     "@openzeppelin/contracts-upgradeable": "^5.1.0"
   }

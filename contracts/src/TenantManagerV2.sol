@@ -3,128 +3,66 @@ pragma solidity ^0.8.25;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "./BasicERC20.sol";
+import "./ERC20NonTransferable.sol";
 import "./Tenant.sol";
-import "./TenantFactory.sol";
 
 interface ITenant {
     function settle(uint256 maxPerTenant) external;
     function name() external view returns (string memory);
     function needSettlement() external view returns (bool);
-    function creator() external view returns (address);
-    function hasRole(bytes32 role, address account) external view returns (bool);
-    function setCurrencyAddress(address _currencyAddress) external;
-    function record(
-        string memory reqID,
-        uint256 amount,
-        uint256 chainID,
-        address contractAddr,
-        uint256 tokenID,
-        address recipient
-    ) external;
 }
 
-interface IOwnershipManager {
-    function ownerOf(uint256 chainId, address contractAddr, uint256 tokenId) external view returns (address);
-}
-
-contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract TenantManagerV2 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public MAX_PER_TENANT;
     mapping(bytes32 => address) public tenants;
     address[] public tenantAddresses;
     uint256 public tenantCreationFee;
-    address public ownershipManager;
-    address public tenantFactoryAddress;
-    uint256 public tenantVersion;
+    address public newVar;
 
-    bytes32 public constant RECORDER_ROLE = keccak256("RECORDER_ROLE");
-    bytes32 public constant SETTLER_ROLE = keccak256("SETTLER_ROLE");
+    event TenantCreated(address tenantAddress, string tenantName, Tenant.CurrencyType ccyType, address ccyAddr, uint256 payoutPeriod);
 
-    event TenantCreated(
-        address indexed tenantAddress, 
-        string tenantName, 
-        uint8 ccyType, 
-        address indexed ccyAddr, 
-        uint256 payoutPeriod
-    );
+    event TenantAddressesLength(uint256 length);
+    event TenantSettled(address tenantAddress);
 
-    event TenantRemoved(address indexed tenantAddress, string tenantName);
-
-    event TenantSettled(address indexed tenantAddress);
-
-    event SettleFailed(address indexed tenantAddress);
-
-    event TenantFactorySet(address indexed factory, uint256 version);
+    event SettleFailed(address tenantAddress);
 
     error DuplicateTenantName();
-    error NoRegisteredTenant();
-    error UnauthorizedAction();
+    error NotScheduledTenant();
 
     function initialize(address owner) public initializer {
         __Ownable_init(owner);
-        __AccessControl_init();
         __UUPSUpgradeable_init();
-        
-        _grantRole(DEFAULT_ADMIN_ROLE, owner);
-        _grantRole(SETTLER_ROLE, owner);
-        
+        // initialize with 10
         setMaxPerTenant(10);
+        // initialize with 0.1 ether
         setTenantCreationFee(0.01 ether);
-        
-        tenantVersion = 1;
     }
 
-    function initializeV2() public reinitializer(2) {
-        tenantVersion = 2;
+    modifier onlyTenant() {
+        require(tenants[keccak256(abi.encodePacked(ITenant(msg.sender).name()))] == msg.sender, "Not Registered Tenant");
+        _;
+    }
+
+    modifier requiresFee() {
+        // require equal to prevent excess payment
+        require(msg.value == tenantCreationFee, "Need exact tenant creation fee");
+        _;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
 
-    function setTenantFactory(address _factory) external onlyOwner {
-        require(_factory != address(0), "Invalid factory");
-        tenantFactoryAddress = _factory;
-        tenantVersion += 1;
-        emit TenantFactorySet(_factory, tenantVersion);
-    }
-
-    function _createTenantInternal(
-        string memory name,
-        Tenant.CurrencyType ccyType,
-        address ccyAddr,
-        uint256 payoutPeriod
-    ) internal returns (address) {
+    function createTenant(string memory name, Tenant.CurrencyType ccyType, address ccyAddr, uint256 payoutPeriod) public payable requiresFee returns (address) {
         bytes32 nameHash = keccak256(abi.encodePacked(name));
-        if (tenants[nameHash] != address(0)) revert DuplicateTenantName();
+        require(tenants[nameHash] == address(0), "Tenant name already exists");
 
-        address newTenantAddress;
-        if (tenantFactoryAddress != address(0)) {
-            newTenantAddress = TenantFactory(tenantFactoryAddress).createTenant(
-                address(this), 
-                msg.sender, 
-                name, 
-                ccyType, 
-                ccyAddr, 
-                payoutPeriod
-            );
-        } else {
-            Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
-            newTenantAddress = address(newTenant);
-        }
-        
-        tenants[nameHash] = newTenantAddress;
-        tenantAddresses.push(newTenantAddress);
-        emit TenantCreated(newTenantAddress, name, uint8(ccyType), ccyAddr, payoutPeriod);
-        return newTenantAddress;
-    }
+        Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, ccyAddr, payoutPeriod);
+        tenants[nameHash] = address(newTenant);
+        tenantAddresses.push(address(newTenant));
 
-    function createTenant(
-        string memory name,
-        Tenant.CurrencyType ccyType,
-        address ccyAddr,
-        uint256 payoutPeriod
-    ) public payable returns (address) {
-        return _createTenantInternal(name, ccyType, ccyAddr, payoutPeriod);
+        emit TenantCreated(address(newTenant), name, ccyType, ccyAddr, payoutPeriod);
+        return address(newTenant);
     }
 
     function createTenantWithMintableContract(
@@ -133,11 +71,31 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
         uint256 payoutPeriod,
         string memory tokenName,
         string memory tokenSymbol
-    ) public payable returns (address) {
-        revert("Deprecated");
+    )
+        public
+        payable
+        requiresFee
+        returns (address)
+    {
+        bytes32 nameHash = keccak256(abi.encodePacked(name));
+        require(tenants[nameHash] == address(0), "Tenant name already exists");
+        require(ccyType == Tenant.CurrencyType.MINTABLES, "ccyType must be MINTABLES");
+
+        Tenant newTenant = new Tenant(address(this), msg.sender, name, ccyType, address(0), payoutPeriod);
+        address newCurrencyAddress;
+
+        ERC20NonTransferable newMintableContract = new ERC20NonTransferable(address(newTenant), tokenName, tokenSymbol);
+        newTenant.setCurrencyAddress(address(newMintableContract));
+        newCurrencyAddress = address(newMintableContract);
+
+        tenants[nameHash] = address(newTenant);
+        tenantAddresses.push(address(newTenant));
+
+        emit TenantCreated(address(newTenant), name, ccyType, address(0), payoutPeriod);
+        return address(newTenant);
     }
 
-    function settleAll() public onlyRole(SETTLER_ROLE) {
+    function settleAll() public onlyOwner {
         uint256 tenantNumber = tenantAddresses.length;
         for (uint256 i = 0; i < tenantNumber; i++) {
             try ITenant(tenantAddresses[i]).settle(MAX_PER_TENANT) {
@@ -153,65 +111,12 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
         return tenants[nameHash];
     }
 
-    function removeTenant(string memory name) public {
-        bytes32 nameHash = keccak256(abi.encodePacked(name));
-        address tenantAddress = tenants[nameHash];
-        if (tenantAddress == address(0)) revert NoRegisteredTenant();
-        if (ITenant(tenantAddress).creator() != msg.sender && owner() != msg.sender) revert UnauthorizedAction();
-        delete tenants[nameHash];
-        for (uint256 i = 0; i < tenantAddresses.length; i++) {
-            if (tenantAddresses[i] == tenantAddress) {
-                tenantAddresses[i] = tenantAddresses[tenantAddresses.length - 1];
-                tenantAddresses.pop();
-                break;
-            }
-        }
-
-        emit TenantRemoved(tenantAddress, name);
-    }
-
     function getTenantAddresses() public view returns (address[] memory) {
         return tenantAddresses;
     }
 
-    function checkNeedSettlement() public view returns (bool) {
-        uint256 tenantNumber = tenantAddresses.length;
-        for (uint256 i = 0; i < tenantNumber; i++) {
-            if (ITenant(tenantAddresses[i]).needSettlement()) return true;
-        }
-        return false;
-    }
-
-    function record(
-        address tenantAddress,
-        string memory reqID,
-        uint256 amount,
-        uint256 chainID,
-        address contractAddr,
-        uint256 tokenID
-    ) public {
-        address nftOwner;
-        if (chainID == block.chainid) {
-            nftOwner = IERC721(contractAddr).ownerOf(tokenID);
-        } else {
-            nftOwner = IOwnershipManager(ownershipManager).ownerOf(chainID, contractAddr, tokenID);
-        }
-
-        ITenant tenant = ITenant(tenantAddress);
-
-        if (tenant.hasRole(RECORDER_ROLE, msg.sender)) {
-            tenant.record(reqID, amount, chainID, contractAddr, tokenID, nftOwner);
-        } else {
-            revert UnauthorizedAction();
-        }
-    }
-
     function setMaxPerTenant(uint256 _maxPerTenant) public onlyOwner {
         MAX_PER_TENANT = _maxPerTenant;
-    }
-
-    function getOwner() public view returns (address) {
-        return owner();
     }
 
     function withdrawFees() public onlyOwner {
@@ -222,7 +127,7 @@ contract TenantManagerV2 is Initializable, OwnableUpgradeable, AccessControlUpgr
         tenantCreationFee = _fee;
     }
 
-    function setOwnershipManager(address _ownershipManager) external onlyOwner {
-        ownershipManager = _ownershipManager;
+    function newFunction(address newAddress) public onlyOwner {
+        newVar = newAddress;
     }
 }

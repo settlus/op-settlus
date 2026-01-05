@@ -1,33 +1,29 @@
-# directories
-cache
-coverage
-node_modules
-out
+# Forge
+cache/
+out/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+coverage.json
+lcov.info
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
 .DS_Store
 
-# env files
-.env
+# IDE
+.idea
+.vscode
 
-# Hardhat files
-/cache
-/artifacts
-
-# TypeChain files
-/typechain
-/typechain-types
-
-# solidity-coverage files
-/coverage
-/coverage.json
-
-# Hardhat Ignition default folder for deployments against a local node
-ignition/deployments/chain-31337
-/scripts/factory-address.json
-
-# broadcasts
-!broadcast
-broadcast/*
+# Broadcasts (keep structure, ignore local)
 broadcast/*/31337/
 
-# ide
-.idea
+# Misc
+/scripts/contract-addresses.json
